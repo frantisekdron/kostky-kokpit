@@ -411,19 +411,46 @@ var GH = (function () {
 
   // Demo resi uz nacti() vyse — nactiVse() nad nim jen posklada vysledek,
   // takze i v demu vraci data z localStorage/DEMO_DATA a nikam nesaha.
+  // Prázdná obálka pro soubor, který v repu (ještě) není.
+  function prazdnaObalka(soubor) {
+    var objektove = { nastaveni: true, pristupy: true, harmonogram: true, nalet: true };
+    var zaklad = { verze: 0, zmeneno: null, zmenil: null };
+    if (objektove[soubor]) {
+      zaklad.data = (soubor === "nalet") ? { teren_m: 260, polozky: [] } : {};
+    } else {
+      zaklad.polozky = [];
+    }
+    return zaklad;
+  }
+
   function nactiVse() {
     var klice = Object.keys(SOUBORY);
     return Promise.all(
       klice.map(function (soubor) {
-        return nacti(soubor).then(function (vysledek) {
-          return { soubor: soubor, vysledek: vysledek };
-        });
+        return nacti(soubor)
+          .then(function (vysledek) {
+            return { soubor: soubor, vysledek: vysledek };
+          })
+          .catch(function (chyba) {
+            // Chybějící datový soubor NESMÍ položit celou appku. Dřív to byl
+            // Promise.all bez záchytu, takže jediné 404 (třeba nový soubor,
+            // který ještě nikdo nenahrál) nechalo kokpit úplně prázdný
+            // a chyba svedla vinu na token. Teď se jen ohlásí a pokračuje se.
+            if (chyba && (chyba.stav === 404 || chyba.status === 404)) {
+              console.warn("Datový soubor " + soubor + " v repu není — pokračuji bez něj.");
+              return { soubor: soubor, vysledek: { data: prazdnaObalka(soubor), etag: null }, chybel: true };
+            }
+            throw chyba;
+          });
       })
     ).then(function (vysledky) {
       var vystup = {};
+      var chybejici = [];
       vysledky.forEach(function (polozka) {
         vystup[polozka.soubor] = polozka.vysledek;
+        if (polozka.chybel) chybejici.push(polozka.soubor);
       });
+      if (chybejici.length) vystup.__chybejici = chybejici;
       return vystup;
     });
   }

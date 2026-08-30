@@ -439,7 +439,7 @@ img {
 @media (min-width: 720px) {
   .layout {
     display: grid;
-    grid-template-columns: var(--sirka-nav-desktop) 1fr;
+    grid-template-columns: var(--sirka-nav-desktop) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
     grid-template-areas:
       "hlavicka hlavicka"
@@ -510,7 +510,7 @@ img {
 
 .karty-mrizka {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -1278,13 +1278,13 @@ img {
 
 .pole-mrizka {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px 14px;
 }
 
 @media (min-width: 560px) {
   .pole-mrizka {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -1716,7 +1716,7 @@ details.komentare[open] summary::before {
 
 .materialy-skupina {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -2163,7 +2163,7 @@ details.komentare[open] summary::before {
 
 .cas-misto-telo {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -2525,6 +2525,9 @@ details.komentare[open] summary::before {
 }
 
 .demo-pruh-btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   font: inherit;
   padding: 3px 10px;
   border-radius: 999px;
@@ -2551,6 +2554,9 @@ details.komentare[open] summary::before {
 }
 
 .demo-pruh-vymazat {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   font: inherit;
   padding: 4px 12px;
   border-radius: 6px;
@@ -3065,7 +3071,7 @@ details.komentare[open] summary::before {
   }
 
   .navsteva-inline-mrizka {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -3185,7 +3191,7 @@ details.komentare[open] summary::before {
    mřížku a rozjel stránku do šířky. */
 .plan-dvousloupec {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -3197,7 +3203,7 @@ details.komentare[open] summary::before {
 
 @media (min-width: 900px) {
   .plan-dvousloupec {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 28px;
   }
 }

@@ -42,8 +42,17 @@
   }
 
   function seznamKonfigOsob() {
-    return window.KONFIG && Array.isArray(KONFIG.osoby) ? KONFIG.osoby : [];
+    if (window.KONFIG && Array.isArray(KONFIG.osoby)) return KONFIG.osoby;
+    // Demo nemá config.js — seznam účtů sestavíme z dat, ať se v něm dá vybírat
+    // a hlavně ať uložení osoby nesmaže přístup, který už má.
+    if (window.DEMO === true) {
+      return App.polozky("lide")
+        .filter(function (o) { return !o.smazano && o.ma_pristup; })
+        .map(function (o) { return { id: o.ma_pristup, jmeno: o.jmeno }; });
+    }
+    return [];
   }
+
 
   function popisPristupu(idKonfigOsoby) {
     var pr = objektPristupu();
@@ -156,7 +165,13 @@
   // ---- formulář přidání / editace (App.modal({nadpis, obsah})) ----
 
   function moznostiPristupu(vybranyId) {
-    return seznamKonfigOsob()
+    var seznam = seznamKonfigOsob().slice();
+    // Kdyby účet z nějakého důvodu v seznamu nebyl (jiný config.js, starší
+    // data), přidáme ho — jinak by ho uložení formuláře tiše zahodilo.
+    if (vybranyId && !seznam.some(function (o) { return o.id === vybranyId; })) {
+      seznam.push({ id: vybranyId, jmeno: vybranyId });
+    }
+    return seznam
       .map(function (o) {
         return '<option value="' + esc(o.id) + '"' + (o.id === vybranyId ? " selected" : "") + ">" + esc(o.jmeno || o.id) + "</option>";
       })
