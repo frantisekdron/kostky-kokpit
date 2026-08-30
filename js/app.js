@@ -727,13 +727,11 @@
     var box = App.el("div", "login-chybi-config");
     box.appendChild(App.el("h3", null, "Kokpit ještě není nastavený"));
     box.appendChild(App.el("p", null,
-      "Chybí soubor config.js s přístupy. Vyrobí ho skript " +
-      "scripts/nastav_pristup.py — postup je v README v repozitáři."));
-    var odkaz = document.createElement("a");
-    odkaz.className = "btn btn-primarni";
-    odkaz.href = "demo.html";
-    odkaz.textContent = "Zatím si otevřít demo (bez hesla)";
-    box.appendChild(odkaz);
+      "Chybí soubor config.js s přístupy. Vyrobí ho skript nastav_pristup.py " +
+      "z privátního repozitáře kostky-data — postup je v README tamtéž."));
+    box.appendChild(App.el("p", null,
+      "Pokud jsi sem přišel s tím, že ti někdo posílal přístup: dej mu vědět, " +
+      "že kokpit ještě není zprovozněný."));
     // Necháme login kartu, jen jí vyměníme obsah — vzhled zůstane.
     var hlavicka = formular.querySelector(".login-hlavicka");
     while (formular.lastChild && formular.lastChild !== hlavicka) {
