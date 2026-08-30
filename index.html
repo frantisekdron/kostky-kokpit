@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<!--
+  index.html — koste aplikace "Kokpit Pragerovy kostky" (Emauzy II).
+
+  Obsahuje jen DOM kostru: prihlasovaci obrazovku, hlavni layout (hlavicka,
+  navigace, obsah), kontejner na toasty a kontejner na modal. Zadna logika
+  tu neni - tu resi skripty nactene na konci souboru presne v poradi podle
+  §2.1 kontraktu (a dodatku, ktery pridava mapa.js/nalet.js/view-casosber.js/
+  view-emauzy.js).
+
+  Vystavuje ven: DOM struktury a ID prvku, na ktere se odkazuji js/auth.js,
+  js/gh.js a hlavne js/app.js (viz komentare u jednotlivych bloku nize).
+-->
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#14161a">
+<title>Pragerovy kostky — Kokpit</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314161a'/%3E%3Crect x='7' y='7' width='18' height='18' fill='%238CC63F'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!--
+  Prihlasovaci obrazovka. Vyber osob naplni js/app.js z Auth.seznamOsob()
+  (auth.js sam do DOM nezasahuje, jen vystavuje data - viz jeho hlavickovy
+  komentar). Formular reaguje na Enter prirozene (submit udalost).
+-->
+<div id="obrazovka-login" class="login-obrazovka">
+  <form id="login-form" class="login-karta" novalidate>
+    <div class="login-hlavicka">
+      <span class="login-kostka" aria-hidden="true"></span>
+      <h1 class="login-nazev">Pragerovy kostky</h1>
+      <p class="login-podnadpis">Kokpit rekonstrukce — Emauzy II</p>
+    </div>
+
+    <div class="pole">
+      <label for="login-osoba">Osoba</label>
+      <select id="login-osoba" name="osoba" required autocomplete="username">
+        <option value="" disabled selected>Načítám seznam osob…</option>
+      </select>
+    </div>
+
+    <div class="pole">
+      <label for="login-heslo">Heslo</label>
+      <input type="password" id="login-heslo" name="heslo" required autocomplete="current-password">
+    </div>
+
+    <p id="login-chyba" class="login-chyba" role="alert" hidden></p>
+
+    <button type="submit" class="btn btn-primarni btn-plny" id="login-tlacitko">
+      Přihlásit
+    </button>
+  </form>
+</div>
+
+<!-- Hlavni layout appky, skryty az do uspesneho prihlaseni. -->
+<div id="layout" class="layout" hidden>
+
+  <header class="hlavicka">
+    <div class="hlavicka-projekt">
+      <span class="hlavicka-kostka" aria-hidden="true"></span>
+      <span id="hlavicka-nazev-projektu" class="hlavicka-nazev">Pragerovy kostky</span>
+    </div>
+
+    <div id="sync-stav" class="sync-stav" aria-live="polite">
+      <span id="sync-tecka" class="sync-tecka sync-ok" aria-hidden="true"></span>
+      <span id="sync-text" class="sync-text">Synchronizováno</span>
+    </div>
+
+    <div class="hlavicka-uzivatel">
+      <span id="uzivatel-jmeno" class="uzivatel-jmeno"></span>
+      <span id="uzivatel-role" class="stitek stitek-role"></span>
+      <button type="button" id="btn-odhlasit" class="btn btn-sekundarni btn-mala">
+        Odhlásit
+      </button>
+    </div>
+  </header>
+
+  <!--
+    Navigace. data-sekce = klic hashe (bez #), na ktery se registruji
+    sekce pres App.registrujSekci v jednotlivych js/view-*.js souborech.
+    Na mobilu (<720px) se z tohoto bloku stava spodni vodorovne rolovatelna
+    lista (viz styles.css) - 9 polozek se do jedne obrazovky nevejde.
+  -->
+  <nav id="navigace" class="navigace" aria-label="Hlavní navigace">
+    <a href="#prehled" class="nav-odkaz" data-sekce="prehled">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Přehled</span>
+    </a>
+    <a href="#navstevy" class="nav-odkaz" data-sekce="navstevy">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Návštěvy</span>
+    </a>
+    <a href="#plan" class="nav-odkaz" data-sekce="plan">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Plán stavby</span>
+    </a>
+    <a href="#casosber" class="nav-odkaz" data-sekce="casosber">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Časosběr</span>
+    </a>
+    <a href="#materialy" class="nav-odkaz" data-sekce="materialy">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Materiály</span>
+    </a>
+    <a href="#emauzy" class="nav-odkaz" data-sekce="emauzy">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">
+        <span class="nav-text-plna">Materiál pro Emauzy</span>
+        <span class="nav-text-kratka">Emauzy</span>
+      </span>
+    </a>
+    <a href="#pripominky" class="nav-odkaz" data-sekce="pripominky">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">
+        <span class="nav-text-dlouha">Připomínky</span>
+        <span class="nav-text-kratka">Připomínky</span>
+      </span>
+    </a>
+    <a href="#lide" class="nav-odkaz" data-sekce="lide">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Tým</span>
+    </a>
+    <a href="#kos" class="nav-odkaz" data-sekce="kos">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Koš</span>
+    </a>
+    <a href="#sprava" class="nav-odkaz" data-sekce="sprava">
+      <span class="nav-ikona" aria-hidden="true"></span>
+      <span class="nav-text">Správa</span>
+    </a>
+  </nav>
+
+  <!--
+    Hlavni obsah. Sem vykresluji jednotlive sekce funkce zaregistrovane
+    pres App.registrujSekci(klic, fn) - viz js/app.js. tabindex="-1", aby
+    tam slo po zmene sekce presunout fokus (bez zarazeni do Tab poradi).
+  -->
+  <main id="obsah" class="obsah" tabindex="-1"></main>
+
+</div>
+
+<!-- Kontejner na toasty (App.toast) - vzdy pritomny, prazdny mimo zprávy. -->
+<div id="toasty" class="toasty" aria-live="polite" aria-atomic="false"></div>
+
+<!-- Kontejner na modaly (App.modal) - skryty, dokud neni otevreny modal. -->
+<div id="modal-kontejner" class="modal-kontejner" hidden></div>
+
+<noscript>Tato aplikace vyžaduje zapnutý JavaScript.</noscript>
+
+<!-- Konfigurace a datova/kryptograficka vrstva (§2.1 kontraktu). -->
+<script src="config.js"></script>
+<script src="js/crypto.js"></script>
+<script src="js/util.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/gh.js"></script>
+
+<!--
+  Minimalni "pahyl" globalu App - jen registrujSekci a interni registr.
+  Duvod: poradi souboru dava js/view-*.js PRED js/app.js (viz §2.1), ale
+  prave view-*.js pri svem nacteni volaji App.registrujSekci(...). Cely
+  zbytek App (App.data, App.prekresli, App.toast, App.modal, ...) doplni
+  az js/app.js, ktery na tento uz existujici objekt jen naveze (nikdy ho
+  nezaklada od znova, aby se registrace sekci neztratily).
+-->
+<script>
+  window.App = window.App || {};
+  window.App._registrovaneSekce = window.App._registrovaneSekce || {};
+  window.App.registrujSekci = window.App.registrujSekci || function (klic, fn) {
+    window.App._registrovaneSekce[klic] = fn;
+  };
+</script>
+
+<!-- Mapa a zapeceny nalet (dodatek §A) - musi byt pred view-casosber.js. -->
+<script src="js/mapa.js"></script>
+
+<!--
+  Doslovny puvodni harmonogram od PORR (globál HARMONOGRAM_PORR) - musi byt
+  pred view-plan.js, ktery ho vykresluje vedle nasi casove osy.
+-->
+
+<!-- Sekce (kazdy soubor si sam zavola App.registrujSekci). -->
+<script src="js/view-prehled.js"></script>
+<script src="js/view-navstevy.js"></script>
+<script src="js/view-plan.js"></script>
+<script src="js/view-casosber.js"></script>
+<script src="js/view-materialy.js"></script>
+<script src="js/view-emauzy.js"></script>
+<script src="js/view-pripominky.js"></script>
+<script src="js/view-lide.js"></script>
+<script src="js/view-kos.js"></script>
+<script src="js/view-sprava.js"></script>
+
+<!-- Startuje appku - musi byt posledni. -->
+<script src="js/app.js"></script>
+
+</body>
+</html>

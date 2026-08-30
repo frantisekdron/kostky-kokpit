@@ -1,0 +1,48 @@
+# POZOR: config.js se NESMI ignorovat - je v nem zasifrovany pristupovy
+# token a bez neho appka na GitHub Pages vubec nenaskoci. Verzuje se schvalne.
+
+# Tohle NIZE naopak do VEREJNEHO repa kostky-kokpit nikdy nesmi (audit nalezl
+# unik: git add -A by je vzalo s sebou - 157 souboru / 24,4 MB, vc. telefonu
+# a e-mailu jmenovitych lidi z PORR a Metrostavu v seed/lide.json a fotek ze
+# stavby). Skutecna data appky ziji v PRIVATNIM repu kostky-data (viz
+# KONTRAKT.md S 1) - tenhle adresar je jen zdrojova appka + skripty.
+#
+# VYJIMKA (Franta 30. 8. 2026, povoleni od PORR mame): snimky z naletu
+# 26. 8. 2026 ven SMI, aby galerie v nasazenem demu fungovala. Jde jen
+# o hotove exporty v nahled/ a velky/ - zadne RAW, zadna data, zadne kontakty.
+# Pozor na poradi: git neumi znovu zahrnout soubor, jehoz RODICOVSKA slozka
+# je vyloucena. Proto se vylucuje po urovnich (seed/*, pak seed/foto_nalet/*)
+# a na kazde urovni se zpatky pusti jen to, co ven smi.
+# AUDIT 30. 8. 2026 — vraceno zpet: ve VEREJNEM repu nesmi byt NIC klientskeho.
+# Puvodne tu byla vyjimka pro snimky z naletu (Franta je povolil, svoleni od
+# PORR bylo), ale slouzily jen verejnemu demu — a to demo s sebou taky neslo
+# odkaz na MyAirBridge a doslovny harmonogram PORR. Demo proto bezi jen
+# lokalne a verejny repo je zase jen appka.
+seed/
+data/
+
+# Jen pro lokalni demo — do verejneho repa nepatri:
+#   demo-data.js  = kopie vsech dat vcetne planu stavby a odkazu ke stazeni
+#   harmonogram.js = doslovny prepis interniho dokumentu PORR
+#   demo.html     = spousti obojí
+demo.html
+js/demo-data.js
+js/harmonogram.js
+js/nalet.js
+
+# README je INTERNI navod pro Frantu — jmenuje 7 lidi z PORR a Metrostavu
+# se zamestnavatelem a roli. Do verejneho repa nepatri (audit 30. 8. 2026).
+README.md
+
+# Skripty jsou provozni nastroje, ne appka — a nastav_pristup.py nese
+# jmena vsech 7 lidi. Zijou lokalne a v PRIVATNIM repu kostky-data.
+scripts/
+KONTRAKT*.md
+ZMENA_*.md
+POZNAMKY_*.md
+TODO_*.md
+
+.DS_Store
+__pycache__/
+*.pyc
+config.local.js

@@ -1,0 +1,3429 @@
+/*
+ * styles.css — kompletni vzhled kokpitu "Pragerovy kostky" (Emauzy II).
+ *
+ * Motiv: beton, ocel, konstrukcni mrizka. Ostre rohy, jemna leva linka
+ * barvou stavu u karet, mrizka 1px --linka na pozadi. Tmave tema napevno
+ * (zadny prepinac). Mobil first, breakpoint 720px, dotykove cile min 44px.
+ *
+ * Obsahuje styly pro: login, layout, navigaci, karty, stitky stavu,
+ * tlacitka (primarni/sekundarni/nebezpecne), formularova pole, tabulku
+ * matice prav, casovou osu (Plan stavby), modal, toasty, progress pruhy,
+ * upozornovaci kartu a prazdne stavy. Konkretni HTML uvnitr sekci
+ * (view-*.js) tento soubor nezna - jen definuje trideny, ktere sekce
+ * pouzivaji (viz POZNAMKY_A-skorapka.md pro presny seznam trid).
+ *
+ * Nic nevystavuje ven (neni to JS modul) - jen CSS pravidla.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Promenne a reset                                                    */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --pozadi: #14161a;
+  --panel: #1b1e24;
+  --panel-2: #22262e;
+  --linka: #2e343e;
+  --text: #e8eaed;
+  --text-slaby: #9aa3af;
+  --akcent: #8CC63F;
+  --akcent-tmavy: #6ea52f;
+  --varovani: #e0a020;
+  --chyba: #d9534f;
+  --ok: #4a9d5f;
+  --modra-porr: #4a7fb5;
+
+  --vyska-nav-mobil: 62px;
+  --sirka-nav-desktop: 220px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--pozadi);
+  background-image:
+    linear-gradient(var(--linka) 1px, transparent 1px),
+    linear-gradient(90deg, var(--linka) 1px, transparent 1px);
+  background-size: 48px 48px;
+  color: var(--text);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3, h4, p, ul, ol, figure {
+  margin: 0;
+}
+
+ul, ol {
+  padding: 0;
+  list-style: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+a {
+  color: var(--akcent);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Pristupnost: focus-visible musi byt vzdy videt. */
+:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Prihlasovaci obrazovka                                              */
+/* ------------------------------------------------------------------ */
+
+.login-obrazovka {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.login-karta {
+  width: 100%;
+  max-width: 380px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.login-hlavicka {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.login-kostka {
+  width: 44px;
+  height: 44px;
+  background: var(--akcent);
+  border-radius: 2px;
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.login-kostka::after {
+  content: "";
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 22px;
+  height: 22px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+}
+
+.login-nazev {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.login-podnadpis {
+  font-size: 0.85rem;
+  color: var(--text-slaby);
+}
+
+.login-chyba {
+  background: var(--chyba);
+  color: var(--pozadi);
+  padding: 9px 12px;
+  border-radius: 2px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 2px 0 14px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tlacitka                                                             */
+/* ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 2px;
+  border: 1px solid var(--linka);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+
+.btn:hover {
+  background: var(--linka);
+}
+
+.btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.btn-primarni {
+  background: var(--akcent);
+  border-color: var(--akcent);
+  color: var(--pozadi);
+}
+
+.btn-primarni:hover:not(:disabled) {
+  background: var(--akcent-tmavy);
+  border-color: var(--akcent-tmavy);
+}
+
+.btn-sekundarni {
+  background: transparent;
+  border-color: var(--linka);
+  color: var(--text);
+}
+
+.btn-sekundarni:hover:not(:disabled) {
+  background: var(--panel-2);
+}
+
+.btn-nebezpecny {
+  background: var(--chyba);
+  border-color: var(--chyba);
+  color: var(--pozadi);
+}
+
+.btn-nebezpecny:hover:not(:disabled) {
+  background: #c14743;
+  border-color: #c14743;
+}
+
+.btn-plny {
+  width: 100%;
+}
+
+.btn-mala {
+  /* KONTRAKT.md S 8: dotykove cile min. 44 px. Font a vodorovny padding
+     zustavaji drobne, roste jen vyska — na stavbe se to kliká palcem. */
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Layout po prihlaseni                                                */
+/* ------------------------------------------------------------------ */
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.hlavicka {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--linka);
+  position: sticky;
+  top: 0;
+  /* Musi byt NAD navigaci: ta mela z-index 40 a pri scrollovani se na desktopu
+     kreslila pres hlavicku i demo pruh (Franta to nahlasil se snimkem). */
+  z-index: 50;
+}
+
+.hlavicka-projekt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  margin-right: auto;
+}
+
+.hlavicka-kostka {
+  width: 20px;
+  height: 20px;
+  background: var(--akcent);
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.hlavicka-nazev {
+  font-size: 1rem;
+}
+
+.sync-stav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+  white-space: nowrap;
+}
+
+.sync-tecka {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-slaby);
+  flex: 0 0 auto;
+}
+
+.sync-tecka.sync-ok {
+  background: var(--ok);
+}
+
+.sync-tecka.sync-ukladam {
+  background: var(--varovani);
+  animation: kostky-pulz 1.2s ease-in-out infinite;
+}
+
+.sync-tecka.sync-chyba {
+  background: var(--chyba);
+}
+
+@keyframes kostky-pulz {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+.hlavicka-uzivatel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.uzivatel-jmeno {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Navigace — mobil (<720px): spodni vodorovne rolovatelna lista        */
+/* ------------------------------------------------------------------ */
+
+.navigace {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: row;
+  background: var(--panel);
+  border-top: 1px solid var(--linka);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.navigace::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
+.nav-odkaz {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 68px;
+  min-height: var(--vyska-nav-mobil);
+  padding: 6px 10px;
+  color: var(--text-slaby);
+  text-decoration: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-left: 1px solid var(--linka);
+  text-align: center;
+}
+
+.nav-odkaz:first-child {
+  border-left: none;
+}
+
+.nav-odkaz:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.nav-odkaz.nav-odkaz-aktivni {
+  color: var(--akcent);
+}
+
+.nav-ikona {
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.nav-text {
+  display: block;
+}
+
+.nav-text-plna {
+  display: none;
+}
+
+.nav-text-kratka {
+  display: inline;
+}
+
+/* Obsah dostane dole misto pro fixni spodni navigaci. */
+.obsah {
+  flex: 1 1 auto;
+  padding: 16px 16px calc(var(--vyska-nav-mobil) + 20px);
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.obsah:focus {
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Navigace — desktop (>=720px): levy sloupec                           */
+/* ------------------------------------------------------------------ */
+
+@media (min-width: 720px) {
+  .layout {
+    display: grid;
+    grid-template-columns: var(--sirka-nav-desktop) 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "hlavicka hlavicka"
+      "navigace obsah";
+    min-height: 100vh;
+  }
+
+  .hlavicka {
+    grid-area: hlavicka;
+  }
+
+  .navigace {
+    grid-area: navigace;
+    /* Prilepena pod hlavicku, at neodscrolluje pryc — Franta: „menu se posouva,
+       kdyz scrolluju dolu, a ubira to strance". Vlastni rolovani, kdyby se
+       polozky nevesly. Vyska hlavicky prichazi z app.js (--vyska-hlavicky),
+       protoze se lisi podle toho, jestli je videt demo pruh. */
+    position: sticky;
+    top: var(--vyska-hlavicky, 112px);
+    align-self: start;
+    max-height: calc(100vh - var(--vyska-hlavicky, 112px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    z-index: 20;
+    flex-direction: column;
+    overflow-x: visible;
+    border-top: none;
+    border-right: 1px solid var(--linka);
+    height: auto;
+  }
+
+  .nav-odkaz {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    min-width: 0;
+    min-height: 48px;
+    width: 100%;
+    padding: 0 18px;
+    font-size: 0.92rem;
+    border-left: none;
+    border-bottom: 1px solid var(--linka);
+  }
+
+  .nav-ikona {
+    width: 12px;
+    height: 12px;
+  }
+
+  .nav-text-plna {
+    display: inline;
+  }
+
+  .nav-text-kratka {
+    display: none;
+  }
+
+  .obsah {
+    grid-area: obsah;
+    padding: 24px 28px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Karty                                                                */
+/* ------------------------------------------------------------------ */
+
+.karty-mrizka {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .karty-mrizka {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+.karta {
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 2px;
+  padding: 14px 16px;
+}
+
+.karta-hlavicka {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.karta-nadpis {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.karta-meta {
+  font-size: 0.8rem;
+  color: var(--text-slaby);
+  margin-top: 2px;
+}
+
+.karta-popis {
+  font-size: 0.9rem;
+  margin-top: 6px;
+}
+
+.karta-akce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Stitky stavu — barva jde jen do leve linky/ramecku, text zustava     */
+/* citelny (var(--text) na var(--panel-2)), aby drzel kontrast 4.5:1    */
+/* i pro --chyba a --modra-porr (ktere jako primy text kontrast nedaji).*/
+/* ------------------------------------------------------------------ */
+
+.stitek {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 2px;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stitek-role {
+  border-left-color: var(--akcent);
+  color: var(--text-slaby);
+}
+
+/* strana u lidi/komentaru (§8 palety — --modra-porr) */
+.stitek-strana-porr, .karta.strana-porr {
+  --stav-barva: var(--modra-porr);
+}
+
+.stitek-strana-metrostav, .karta.strana-metrostav {
+  --stav-barva: var(--text-slaby);
+}
+
+.stitek-strana-fd, .karta.strana-fd {
+  --stav-barva: var(--akcent);
+}
+
+/* Sjednocene stavy napric plan.json / navstevy.json / materialy.json /
+   casosber.json (dodatek) — pouzij tridu "stav-<hodnota>" na .karta
+   nebo .stitek. */
+
+.stav-hotovo, .stav-probehlo, .stav-predano, .stav-schvaleno {
+  --stav-barva: var(--ok);
+}
+
+.stav-probiha, .stav-ve-zpracovani, .stav-potvrzeno {
+  --stav-barva: var(--akcent);
+}
+
+.stav-planovano, .stav-navrh, .stav-syrove, .stav-navrzeno {
+  --stav-barva: var(--text-slaby);
+}
+
+.stav-posunuto, .stav-ke-schvaleni, .stav-jedna-se {
+  --stav-barva: var(--varovani);
+}
+
+.stav-zruseno, .stav-zamitnuto {
+  --stav-barva: var(--chyba);
+}
+
+.stitek.stav-zruseno, .stitek.stav-zamitnuto {
+  text-decoration: line-through;
+  text-decoration-color: var(--chyba);
+}
+
+/* ------------------------------------------------------------------ */
+/* Formularova pole                                                     */
+/* ------------------------------------------------------------------ */
+
+.pole {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.pole label {
+  font-size: 0.85rem;
+  color: var(--text-slaby);
+  font-weight: 600;
+}
+
+.pole input,
+.pole select,
+.pole textarea {
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  color: var(--text);
+  border-radius: 2px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  min-height: 44px;
+}
+
+.pole textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.pole input:focus,
+.pole select:focus,
+.pole textarea:focus {
+  border-color: var(--akcent);
+}
+
+.pole input:disabled,
+.pole select:disabled,
+.pole textarea:disabled {
+  opacity: .6;
+}
+
+.pole-radek {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.pole-radek input[type="checkbox"],
+.pole-radek input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--akcent);
+  flex: 0 0 auto;
+}
+
+.napoveda {
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+}
+
+.chybove-pole {
+  border-color: var(--chyba) !important;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tabulka matice prav (sekce Sprava)                                   */
+/* ------------------------------------------------------------------ */
+
+.tabulka-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+}
+
+.tabulka-prav {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tabulka-prav th,
+.tabulka-prav td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--linka);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tabulka-prav thead th {
+  background: var(--panel-2);
+  color: var(--text-slaby);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  position: sticky;
+  top: 0;
+}
+
+.tabulka-prav tbody tr:hover {
+  background: var(--panel-2);
+}
+
+.tabulka-prav .radek-zamceny {
+  opacity: .7;
+}
+
+.tabulka-prav input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--akcent);
+}
+
+/* ------------------------------------------------------------------ */
+/* Casova osa (sekce Plan stavby)                                       */
+/* ------------------------------------------------------------------ */
+
+.casova-osa {
+  position: relative;
+  padding-left: 26px;
+}
+
+.osa-rok {
+  margin: 26px 0 12px;
+  font-weight: 700;
+  color: var(--text-slaby);
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: .06em;
+}
+
+.osa-rok:first-child {
+  margin-top: 0;
+}
+
+.osa-polozka {
+  position: relative;
+  padding: 10px 0 10px 22px;
+  margin-left: -26px;
+  padding-left: 48px;
+  border-left: 2px solid var(--linka);
+}
+
+.osa-polozka:last-child {
+  border-left-color: transparent;
+}
+
+.osa-uzel {
+  position: absolute;
+  left: -7px;
+  top: 14px;
+  width: 12px;
+  height: 12px;
+  background: var(--stav-barva, var(--text-slaby));
+  border: 2px solid var(--pozadi);
+  border-radius: 2px;
+}
+
+.osa-uzel.stav-navrh,
+.osa-uzel.stav-planovano {
+  background: var(--pozadi);
+  border: 2px dashed var(--text-slaby);
+}
+
+.osa-dnesek {
+  position: relative;
+  height: 0;
+  border-top: 2px solid var(--akcent);
+  margin: 18px 0 18px -26px;
+  padding-left: 48px;
+}
+
+.osa-dnesek::after {
+  content: "Dnes";
+  position: absolute;
+  left: 48px;
+  top: -9px;
+  background: var(--pozadi);
+  padding: 0 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--akcent);
+}
+
+.osa-navsteva {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  font-size: 0.85rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* Modal                                                                 */
+/* ------------------------------------------------------------------ */
+
+.modal-kontejner {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.modal-pozadi {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 11, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-okno {
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal-hlavicka {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--linka);
+}
+
+.modal-nadpis {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.modal-zavrit {
+  background: transparent;
+  border: none;
+  color: var(--text-slaby);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 2px;
+}
+
+.modal-zavrit:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.modal-telo {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.modal-paticka {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--linka);
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Toasty                                                                */
+/* ------------------------------------------------------------------ */
+
+.toasty {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--vyska-nav-mobil) + 12px);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--text-slaby);
+  border-radius: 2px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  animation: kostky-toast-dovnitr .18s ease;
+}
+
+.toast-ok {
+  border-left-color: var(--ok);
+}
+
+.toast-chyba {
+  border-left-color: var(--chyba);
+}
+
+.toast-info {
+  border-left-color: var(--akcent);
+}
+
+.toast-text {
+  flex: 1 1 auto;
+  font-size: 0.88rem;
+}
+
+.toast-zavrit {
+  background: transparent;
+  border: none;
+  color: var(--text-slaby);
+  cursor: pointer;
+  font-size: 1.1rem;
+  min-width: 32px;
+  min-height: 32px;
+  flex: 0 0 auto;
+}
+
+.toast-zavrit:hover {
+  color: var(--text);
+}
+
+.toast-mizi {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+@keyframes kostky-toast-dovnitr {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 720px) {
+  .toasty {
+    left: auto;
+    right: 24px;
+    bottom: auto;
+    top: 76px;
+    width: 360px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Progress pruhy                                                       */
+/* ------------------------------------------------------------------ */
+
+.progress-radek {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.progress-radek:last-child {
+  margin-bottom: 0;
+}
+
+.progress-popisek {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-slaby);
+}
+
+.progress {
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progress-vyplneno {
+  height: 100%;
+  background: var(--akcent);
+  border-radius: 1px;
+  transition: width .3s ease;
+}
+
+.progress-vyplneno.progress-plno {
+  background: var(--ok);
+}
+
+/* ------------------------------------------------------------------ */
+/* Upozornovaci karta                                                   */
+/* ------------------------------------------------------------------ */
+
+.karta-upozorneni {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--varovani);
+  border-left: 4px solid var(--varovani);
+  border-radius: 2px;
+  padding: 14px 40px 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.karta-upozorneni-ikona {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border: 2px solid var(--varovani);
+  border-radius: 2px;
+}
+
+.karta-upozorneni-obsah {
+  flex: 1 1 auto;
+  font-size: 0.9rem;
+}
+
+.karta-upozorneni-nadpis {
+  font-weight: 700;
+  color: var(--varovani);
+  margin-bottom: 4px;
+}
+
+.karta-upozorneni-zavrit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-slaby);
+  cursor: pointer;
+  font-size: 1.2rem;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 2px;
+}
+
+.karta-upozorneni-zavrit:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+/* ------------------------------------------------------------------ */
+/* Prazdne stavy                                                        */
+/* ------------------------------------------------------------------ */
+
+.prazdny-stav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 44px 20px;
+  color: var(--text-slaby);
+  text-align: center;
+}
+
+.prazdny-stav-ikona {
+  width: 36px;
+  height: 36px;
+  border: 2px dashed var(--linka);
+  border-radius: 2px;
+}
+
+.prazdny-stav-text {
+  font-size: 0.92rem;
+  max-width: 32em;
+}
+
+/* ------------------------------------------------------------------ */
+/* Drobne pomocne trydy                                                 */
+/* ------------------------------------------------------------------ */
+
+.nadpis-sekce {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.podnadpis-sekce {
+  font-size: 0.85rem;
+  color: var(--text-slaby);
+  margin-top: -8px;
+  margin-bottom: 14px;
+}
+
+.oddil {
+  margin-bottom: 28px;
+}
+
+.oddil:last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dorovnani na skutecne view-*.js soubory                              */
+/*                                                                      */
+/* Nasledujici bloky doplnuji tridy, ktere uz pouzivaji hotove          */
+/* view-prehled.js / view-navstevy.js / view-plan.js / view-materialy.js /
+/* view-lide.js / view-kos.js / view-sprava.js (zjisteno cetenim jejich */
+/* zdrojoveho kodu, ne odhadem) — viz POZNAMKY_A-skorapka.md. Drzi se   */
+/* stejneho vizualniho jazyka jako zbytek souboru (tmave panely, ostre  */
+/* rohy, tenka leva linka barvou stavu).                                */
+/* ------------------------------------------------------------------ */
+
+/* -- tlacitka: aliasy na jinak pojmenovane varianty -- */
+
+.btn-druhotny {
+  background: transparent;
+  border-color: var(--linka);
+  color: var(--text);
+}
+
+.btn-druhotny:hover:not(:disabled) {
+  background: var(--panel-2);
+}
+
+.btn-maly {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
+/* tise/textove tlacitko - bez ramecku, jen text (napr. "Zrusit" u vraceni
+   navrhu, "Smazat" u komentare pouzite jako .btn-odkaz) */
+.btn-tiche,
+.btn-odkaz {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-slaby);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-tiche:hover,
+.btn-odkaz:hover {
+  color: var(--text);
+}
+
+/* male ctvercove tlacitko jen s ikonou (x) - napr. smazat radek shot listu.
+   Nese vlastni box-model, protoze se v kodu pouziva SAMO (bez zakladni
+   tridy .btn), typicky spolu s .btn-nebezpecny pro barvu. */
+.btn-ikonovy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  color: var(--text-slaby);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-ikonovy:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.btn-ikonovy.btn-nebezpecny {
+  background: transparent;
+  border-color: var(--chyba);
+  color: var(--chyba);
+}
+
+.btn-ikonovy.btn-nebezpecny:hover {
+  background: var(--chyba);
+  color: var(--pozadi);
+}
+
+.btn-smazat-material {
+  color: var(--chyba);
+}
+
+/* -- obecny formular a jeho pole (pouziva vsechny sekce s editaci) -- */
+
+.formular {
+  display: flex;
+  flex-direction: column;
+}
+
+.formular-podsekce {
+  margin: 4px 0 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--linka);
+}
+
+.formular-akce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.formular-chyba,
+.chyba-hlaska {
+  background: var(--chyba);
+  color: var(--pozadi);
+  padding: 9px 12px;
+  border-radius: 2px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.chybove-pole-text {
+  color: var(--chyba);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.podnadpis-formulare {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 4px 0 10px;
+}
+
+.pole-mrizka {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px 14px;
+}
+
+@media (min-width: 560px) {
+  .pole-mrizka {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pole-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.pole-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--akcent);
+  flex: 0 0 auto;
+}
+
+.pocitadlo {
+  color: var(--text-slaby);
+  font-weight: 400;
+}
+
+/* -- prepinac (aktivni/neaktivni uzivatel ve Sprave) -- */
+
+.prepinac {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.prepinac input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--akcent);
+}
+
+/* -- sekce hlavicka: nadpis + prip. tlacitko vpravo (Sprava, Materialy) -- */
+
+.sekce-hlava,
+.sekce-hlavicka {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.sekce-hlava h2,
+.sekce-hlavicka h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.blok-spravy {
+  margin-bottom: 28px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--linka);
+}
+
+.blok-spravy:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.blok-spravy h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.pravo-kod {
+  display: block;
+  font-weight: 600;
+}
+
+.pravo-popis {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+}
+
+.bunka-checkbox {
+  text-align: center !important;
+}
+
+.tabulka-uzivatele {
+  width: 100%;
+  min-width: 420px;
+}
+
+.stitek-ja {
+  border-left-color: var(--akcent);
+}
+
+/* -- odkazy v Nastaveni projektu -- */
+
+.seznam-odkazu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.odkaz-radek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+}
+
+.odkaz-nazev {
+  font-weight: 600;
+}
+
+.odkaz-url {
+  color: var(--akcent);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.pridat-odkaz-radek {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pridat-odkaz-radek input {
+  flex: 1 1 160px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  color: var(--text);
+  border-radius: 2px;
+  padding: 10px 12px;
+  font: inherit;
+  min-height: 44px;
+}
+
+/* -- Lide: skupiny podle strany + karta osoby -- */
+
+.skupina-lidi {
+  margin-bottom: 28px;
+  padding-top: 10px;
+  border-top: 3px solid var(--stav-barva, var(--linka));
+}
+
+.skupina-lidi:last-child {
+  margin-bottom: 0;
+}
+
+.skupina-nadpis {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--text-slaby);
+}
+
+.karta-osoba {
+  /* barva leve linky prichazi z .karta.strana-* pravidla vyse */
+}
+
+.karta-radek {
+  font-size: 0.88rem;
+  margin-top: 4px;
+}
+
+.karta-label {
+  color: var(--text-slaby);
+  font-weight: 600;
+}
+
+.karta-kontakty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 6px;
+}
+
+.kontakt-radek {
+  color: var(--akcent);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.kontakt-radek:hover {
+  text-decoration: underline;
+}
+
+.prazdny-stav-mini {
+  color: var(--text-slaby);
+  font-size: 0.88rem;
+  padding: 10px 0;
+}
+
+/* -- Kos: seznam smazanych po skupinach -- */
+
+.skupina-kos {
+  margin-bottom: 24px;
+}
+
+.skupina-kos:last-child {
+  margin-bottom: 0;
+}
+
+.seznam-kos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radek-kos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--text-slaby);
+  border-radius: 2px;
+}
+
+.radek-kos-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.radek-kos-meta {
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+}
+
+.radek-kos-akce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* -- Komentare (Navstevy / Plan / Materialy) -- */
+
+details.komentare {
+  margin-top: 14px;
+  border-top: 1px solid var(--linka);
+  padding-top: 10px;
+}
+
+details.komentare summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-slaby);
+  list-style: none;
+}
+
+details.komentare summary::-webkit-details-marker {
+  display: none;
+}
+
+details.komentare summary::before {
+  content: "▸ ";
+}
+
+details.komentare[open] summary::before {
+  content: "▾ ";
+}
+
+.komentare-seznam {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.komentar {
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+}
+
+.komentar-hlavicka {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+  margin-bottom: 4px;
+}
+
+.komentar-autor {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.komentar-text {
+  font-size: 0.9rem;
+}
+
+.komentar-formular {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.komentar-formular textarea {
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  color: var(--text);
+  border-radius: 2px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+/* -- Plan stavby: souhrn nahore + pripnuta navsteva u milniku -- */
+
+.plan-souhrn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+}
+
+.souhrn-cislo {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.souhrn-nejblizsi {
+  color: var(--text-slaby);
+  font-size: 0.85rem;
+}
+
+.navsteva-pripnuta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: var(--panel-2);
+  border: 1px dashed var(--linka);
+  border-radius: 2px;
+  font-size: 0.82rem;
+  color: var(--text-slaby);
+  cursor: pointer;
+}
+
+.navsteva-pripnuta:hover {
+  color: var(--text);
+  border-color: var(--akcent);
+}
+
+/* -- Materialy: hlavicka, filtry, seznam, souhrn, jednotliva karta -- */
+
+.materialy-souhrn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.materialy-filtry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.filtr-pole {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-slaby);
+  font-weight: 600;
+}
+
+.filtr-pole select {
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  color: var(--text);
+  border-radius: 2px;
+  padding: 8px 10px;
+  font: inherit;
+  min-height: 40px;
+}
+
+.materialy-seznam {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.materialy-skupina-nadpis {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--linka);
+}
+
+.material-karta {
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 2px;
+  padding: 14px 16px;
+}
+
+.materialy-skupina .karty-mrizka,
+.materialy-skupina > .material-karta + .material-karta {
+  margin-top: 12px;
+}
+
+.materialy-skupina {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .materialy-skupina {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    align-items: start;
+  }
+}
+
+.material-hlavicka-radek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.material-nazev {
+  font-weight: 700;
+  margin-right: auto;
+}
+
+.material-meta {
+  font-size: 0.82rem;
+  color: var(--text-slaby);
+}
+
+.material-poznamka {
+  font-size: 0.88rem;
+  margin-top: 6px;
+}
+
+.material-akce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* -- MyAirBridge radek -- */
+
+.myairbridge-radek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.stitek-prazdny {
+  color: var(--text-slaby);
+}
+
+.stitek-chyba {
+  background: rgba(217, 83, 79, 0.16);
+  color: var(--chyba);
+  border: 1px solid rgba(217, 83, 79, 0.45);
+}
+
+.stitek-expirace {
+  --stav-barva: var(--varovani);
+}
+
+.stitek-heslo {
+  --stav-barva: var(--text-slaby);
+}
+
+/* -- Vimeo embed: 16:9, prehravac nacteny az na klik -- */
+
+.vimeo-blok {
+  margin-top: 10px;
+}
+
+.vimeo-embed {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vimeo-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.vimeo-prehrat-tlacitko {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-2);
+  border: none;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vimeo-prehrat-tlacitko:hover {
+  background: var(--linka);
+}
+
+.vimeo-odkaz-fallback {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--akcent);
+  font-size: 0.9rem;
+}
+
+/* ================================================================== */
+/* ČASOSBĚR (KONTRAKT_DODATEK.md §A) + DEMO PRUH (§E)                  */
+/*                                                                      */
+/* Vse nize je PRIDANE, nic vyse se nemeni. Mobil first, dotykove cile  */
+/* min 44 px. Tridy pouzivaji js/mapa.js a js/view-casosber.js.         */
+/* Stavy mist (navrzeno / jedna-se / schvaleno / zamitnuto) NEMAJI      */
+/* vlastni tridy — pouzivaji spolecne .stav-* definovane vyse.          */
+/* ================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* Mapa nad dlazdicemi OpenStreetMap (js/mapa.js, §A.5)                 */
+/* ------------------------------------------------------------------ */
+
+.mapa {
+  display: block;
+  width: 100%;
+}
+
+/* Vysky map podle pouziti — vsechny prepsatelne modifikatory nize. */
+.mapa-platno {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  contain: paint;
+}
+
+.mapa-platno-tazeni {
+  cursor: grabbing;
+}
+
+.mapa-platno-klikatelna {
+  cursor: crosshair;
+}
+
+.mapa-mala .mapa-platno {
+  height: 160px;
+}
+
+.mapa-stredni .mapa-platno {
+  height: 240px;
+}
+
+.mapa-velka .mapa-platno {
+  height: 280px;
+}
+
+@media (min-width: 720px) {
+  .mapa-mala .mapa-platno {
+    height: 190px;
+  }
+
+  .mapa-stredni .mapa-platno {
+    height: 300px;
+  }
+
+  .mapa-velka .mapa-platno {
+    height: 420px;
+  }
+}
+
+.mapa-dlazdice,
+.mapa-markery {
+  position: absolute;
+  inset: 0;
+}
+
+.mapa-markery {
+  pointer-events: none;
+}
+
+.mapa-dlazdice-obrazek {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  max-width: none;
+  pointer-events: none;
+  /* dlazdice OSM jsou svetle — jemne ztlumit, at nesviti v tmavem temacu */
+  filter: brightness(0.82) saturate(0.85);
+}
+
+/* -- Marker: krouzek se spickou v barve --akcent -- */
+
+.mapa-marker {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -100%);
+  background: transparent;
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.mapa-marker-kolecko {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--akcent);
+  color: #14161a;
+  border: 2px solid #14161a;
+  border-radius: 50%;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* spicka pod krouzkem */
+.mapa-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid var(--akcent);
+}
+
+/* Snimky z naletu = male tlumene tecky bez spicky a bez cisla. */
+.mapa-marker-snimek {
+  width: 11px;
+  height: 11px;
+  transform: translate(-50%, -50%);
+  background: var(--text-slaby);
+  border: 1px solid #14161a;
+  border-radius: 50%;
+  opacity: 0.62;
+  z-index: 1;
+}
+
+.mapa-marker-snimek::after {
+  display: none;
+}
+
+.mapa-marker-snimek:hover,
+.mapa-marker-snimek:focus-visible {
+  opacity: 1;
+  background: var(--text);
+}
+
+/* -- Ovladani zoomu -- */
+
+.mapa-ovladani {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 3;
+}
+
+.mapa-tlacitko {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mapa-tlacitko:hover {
+  background: var(--panel-2);
+  border-color: var(--akcent);
+}
+
+.mapa-napoveda {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  max-width: calc(100% - 70px);
+  padding: 4px 8px;
+  background: rgba(20, 22, 26, 0.82);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  color: var(--text-slaby);
+  font-size: 0.72rem;
+  pointer-events: none;
+}
+
+/* -- Nahrada, kdyz se dlazdice nenactou (mapa nesmi spadnout) -- */
+
+.mapa-nahrada {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 160px;
+  height: 100%;
+  padding: 20px 16px;
+  background: var(--panel-2);
+  border: 1px dashed var(--linka);
+  border-radius: 2px;
+  text-align: center;
+}
+
+.mapa-platno-selhalo {
+  cursor: default;
+}
+
+.mapa-nahrada-hlaska {
+  color: var(--text-slaby);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mapa-nahrada-souradnice {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- Povinna atribuce OpenStreetMap + odkazy do externich map -- */
+
+.mapa-paticka {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-slaby);
+}
+
+.mapa-atribuce a {
+  color: var(--text-slaby);
+  text-decoration: underline;
+}
+
+.mapa-odkazy {
+  display: flex;
+  gap: 14px;
+}
+
+.mapa-odkazy a {
+  color: var(--akcent);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
+.mapa-odkazy a:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------ */
+/* Souhrn sekce Casosber (§A.8)                                         */
+/* ------------------------------------------------------------------ */
+
+.cas-souhrn {
+  margin-bottom: 22px;
+  --stav-barva: var(--akcent);
+}
+
+.cas-souhrn-hlavni {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.cas-souhrn-popisek {
+  font-size: 0.9rem;
+  color: var(--text-slaby);
+}
+
+.cas-souhrn-varovani {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(224, 160, 32, 0.1);
+  border-left: 3px solid var(--varovani);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.cas-legenda,
+.cas-pocitadlo {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+}
+
+/* ------------------------------------------------------------------ */
+/* Karty vybranych mist                                                 */
+/* ------------------------------------------------------------------ */
+
+.cas-seznam-mist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cas-misto {
+  scroll-margin-top: 80px;
+}
+
+.cas-misto-zvyrazneno {
+  box-shadow: 0 0 0 2px var(--akcent);
+}
+
+.cas-misto-telo {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 720px) {
+  .cas-misto-telo {
+    grid-template-columns: 210px minmax(0, 1fr) 260px;
+    align-items: start;
+  }
+}
+
+.cas-misto-foto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cas-misto-foto img {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+}
+
+.cas-misto-foto-odkaz {
+  align-self: flex-start;
+}
+
+.cas-foto-stav {
+  padding: 14px 10px;
+  background: var(--panel-2);
+  border: 1px dashed var(--linka);
+  border-radius: 2px;
+  color: var(--text-slaby);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.cas-misto-udaje {
+  min-width: 0;
+}
+
+.cas-udaj {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--linka);
+  font-size: 0.86rem;
+}
+
+.cas-udaj:last-child {
+  border-bottom: 0;
+}
+
+.cas-udaj-popisek {
+  min-width: 10em;
+  color: var(--text-slaby);
+}
+
+.cas-udaj-hodnota {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cas-vyska {
+  margin: 8px 0 10px;
+}
+
+.cas-vyska-hlavni {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cas-drobne {
+  font-size: 0.72rem;
+  color: var(--text-slaby);
+}
+
+.cas-poznamka {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--linka);
+  font-size: 0.85rem;
+}
+
+.cas-varovani {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: rgba(224, 160, 32, 0.1);
+  border-left: 3px solid var(--varovani);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ */
+/* Filtr galerie                                                        */
+/* ------------------------------------------------------------------ */
+
+.galerie-filtr {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.galerie-filtr::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .galerie-filtr {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+.filtr-tlacitko {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  color: var(--text-slaby);
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filtr-tlacitko:hover {
+  border-color: var(--akcent);
+  color: var(--text);
+}
+
+.filtr-tlacitko-aktivni {
+  background: var(--akcent);
+  border-color: var(--akcent);
+  color: #14161a;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mrizka galerie a dlazdice (§A.3)                                     */
+/* ------------------------------------------------------------------ */
+
+.galerie-mrizka {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .galerie-mrizka {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 14px;
+  }
+}
+
+.dlazdice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 2px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dlazdice:hover {
+  border-color: var(--akcent);
+  border-left-color: var(--akcent);
+}
+
+.dlazdice-tlumena {
+  opacity: 0.5;
+}
+
+.dlazdice-tlumena:hover,
+.dlazdice-tlumena:focus-visible {
+  opacity: 1;
+}
+
+.dlazdice-obrazek {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.dlazdice-obrazek img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dlazdice-stav {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-slaby);
+  font-size: 0.78rem;
+}
+
+.dlazdice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dlazdice-radek {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dlazdice-slaby {
+  font-weight: 400;
+  color: var(--text-slaby);
+}
+
+.dlazdice-stitky {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.dlazdice-stitky .stitek {
+  padding: 2px 7px 2px 6px;
+  font-size: 0.68rem;
+}
+
+/* -- Stitky galerie -- */
+
+.stitek-zarizeni {
+  --stav-barva: var(--modra-porr);
+}
+
+.stitek-volny-let {
+  --stav-barva: var(--varovani);
+  color: var(--varovani);
+}
+
+.stitek-popis {
+  --stav-barva: var(--akcent);
+}
+
+.stitek-vybrano {
+  --stav-barva: var(--ok);
+  color: var(--ok);
+}
+
+/* ------------------------------------------------------------------ */
+/* Detail snimku v modalu (§A.3)                                        */
+/* ------------------------------------------------------------------ */
+
+/* Modal detailu snimku je sirsi nez bezny formularovy modal. */
+.modal-kontejner.modal-siroky .modal-okno {
+  max-width: 900px;
+}
+
+.detail-snimku {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-obrazek {
+  position: relative;
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.detail-obrazek a {
+  display: block;
+}
+
+.detail-obrazek img {
+  width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+  background: #0d0f12;
+}
+
+.detail-podnadpis {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.detail-akce {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--linka);
+}
+
+/* ------------------------------------------------------------------ */
+/* DEMO PRUH (dodatek §E)                                               */
+/*                                                                      */
+/* Stejne hodnoty jako inline kopie v js/app.js a demo.html — ty se     */
+/* vkladaji do <head> az za tenhle soubor, takze pri souběhu vyhraji    */
+/* one; tady je to proto, aby pruh vypadal spravne i bez nich.          */
+/* ------------------------------------------------------------------ */
+
+.demo-pruh {
+  order: -1;
+  flex: 0 0 calc(100% + 32px);
+  margin: -10px -16px 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 9px 16px;
+  background: #f08a1e;
+  color: #1a1206;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+  border-bottom: 2px solid #b8630c;
+}
+
+.demo-pruh-text {
+  margin-right: auto;
+}
+
+.demo-pruh-role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.demo-pruh-btn {
+  font: inherit;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(26, 18, 6, 0.45);
+  background: rgba(255, 255, 255, 0.35);
+  color: #1a1206;
+  cursor: pointer;
+}
+
+.demo-pruh-btn:hover {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.demo-pruh-btn[aria-pressed="true"] {
+  background: #1a1206;
+  border-color: #1a1206;
+  color: #f6a94a;
+}
+
+.demo-pruh-btn:focus-visible,
+.demo-pruh-vymazat:focus-visible {
+  outline: 2px solid #1a1206;
+  outline-offset: 2px;
+}
+
+.demo-pruh-vymazat {
+  font: inherit;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid #1a1206;
+  background: transparent;
+  color: #1a1206;
+  cursor: pointer;
+}
+
+.demo-pruh-vymazat:hover {
+  background: rgba(26, 18, 6, 0.14);
+}
+
+@media (max-width: 719px) {
+  .demo-pruh {
+    font-size: 0.78rem;
+    gap: 6px 10px;
+    padding: 7px 12px;
+  }
+
+  .demo-pruh-btn {
+    padding: 2px 8px;
+  }
+
+  .demo-pruh-vymazat {
+    padding: 3px 9px;
+  }
+}
+
+/* Marker bez kliku (mapa s jednim bodem) nesmi brat mys — jinak by se
+   mapa nedala tahnout, kdyz clovek chytne zrovna spendlik. */
+.mapa-marker-staticky {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------
+   Dotykové cíle — KONTRAKT.md S 8 žádá minimálně 44 px. Doplněno při
+   integraci po měření na mobilu 390x844 (naměřeno 36 px, 32 px a 11 px).
+   ------------------------------------------------------------------ */
+
+.karta-upozorneni-zavrit,
+.btn-ikonovy {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Body na přehledové mapě zůstávají vizuálně malé (jinak by mapu zakryly),
+   ale dostávají neviditelnou dotykovou plochu okolo — na telefonu se do
+   11px tečky prstem netrefíš. */
+.mapa-marker {
+  position: relative;
+}
+
+.mapa-marker::after {
+  content: "";
+  position: absolute;
+  inset: -17px;
+  border-radius: 50%;
+}
+
+/* ==================================================================
+   Sekce Návštěvy — stavová kontrolka u termínu, rychlá editace na kartě,
+   seskupení po letech (js/view-navstevy.js).
+   Přidáno NA KONEC souboru, žádné stávající pravidlo se nemění. Vlastní
+   prefix .nav-stav-* schválně nesahá na sdílené .stav-* třídy, které
+   používá i Plán stavby, Materiály a Časosběr.
+   ================================================================== */
+
+:root {
+  /* "Proběhlo" — tmavší zelená než --ok, ať jsou "potvrzeno" a "proběhlo"
+     odlišitelné. Kontrast proti --panel i --panel-2 zůstává nad 3:1. */
+  --ok-tmavy: #3d8a52;
+}
+
+/* --- barvy stavů návštěvy (KONTRAKT.md §8) --- */
+.nav-stav-navrh { --stav-barva: var(--text-slaby); }
+.nav-stav-ke-schvaleni { --stav-barva: var(--varovani); }
+.nav-stav-schvaleno { --stav-barva: var(--modra-porr); }
+.nav-stav-potvrzeno { --stav-barva: var(--ok); }
+.nav-stav-probehlo { --stav-barva: var(--ok-tmavy); }
+.nav-stav-zruseno { --stav-barva: var(--chyba); }
+
+/* --- filtr s počty --- */
+.navstevy-filtr {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.navstevy-filtr::-webkit-scrollbar {
+  display: none;
+}
+
+.navstevy-filtr .btn {
+  flex: 0 0 auto;
+}
+
+.navstevy-filtr-pocet {
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- nadpis roku --- */
+.navstevy-rok {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-slaby);
+}
+
+.navstevy-rok::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--linka);
+}
+
+.navstevy-rok-pocet {
+  order: 1;
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 1px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Karty návštěv jsou hutnější než ostatní — na desktopu jim dáme víc místa,
+   ať se inline editace termínu vejde na jeden řádek. */
+@media (min-width: 720px) {
+  .navstevy-mrizka {
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  }
+}
+
+.navsteva-karta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* --- 1. stavový řádek: kontrolka + termín + název stavu --- */
+.navsteva-stavradek {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: -2px 0 6px;
+  min-width: 0;
+}
+
+.navsteva-kontrolka {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--stav-barva, var(--text-slaby));
+  color: var(--pozadi);
+  font-size: 0.82rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.navsteva-termin {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.navsteva-termin-text {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.nav-stav-zruseno .navsteva-termin-text {
+  text-decoration: line-through;
+  text-decoration-color: var(--chyba);
+  color: var(--text-slaby);
+}
+
+.navsteva-cas {
+  font-size: 0.85rem;
+  color: var(--text-slaby);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Klikatelný termín = rychlá inline editace. Vypadá jako text, chová se
+   jako tlačítko; dotykový cíl drží 44 px. */
+.navsteva-termin-btn {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  min-height: 44px;
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.navsteva-termin-btn:hover {
+  background: var(--panel-2);
+  border-color: var(--linka);
+}
+
+.navsteva-termin-btn[aria-expanded="true"] {
+  background: var(--panel-2);
+  border-color: var(--stav-barva, var(--linka));
+  border-style: solid;
+}
+
+.navsteva-tuzka {
+  margin-left: 4px;
+  font-size: 0.8rem;
+  color: var(--text-slaby);
+}
+
+.navsteva-stav-nazev {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  padding: 2px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.navsteva-orientacne {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--text-slaby);
+}
+
+.navsteva-znacka-nejblizsi {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pozadi);
+  background: var(--akcent);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+/* --- zvýraznění nejbližší nadcházející návštěvy --- */
+.navsteva-nejblizsi {
+  border-color: var(--akcent);
+  box-shadow: 0 0 0 1px var(--akcent);
+}
+
+/* --- 2. hlavička: číslo a název otevírají detail --- */
+.navsteva-karta .karta-hlavicka {
+  margin-bottom: 4px;
+}
+
+.navsteva-nazev-btn {
+  appearance: none;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--linka);
+  text-underline-offset: 3px;
+}
+
+.navsteva-nazev-btn:hover {
+  color: var(--akcent);
+  text-decoration-color: var(--akcent);
+}
+
+/* --- typy --- */
+.navsteva-typy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+
+.stitek-typ {
+  --stav-barva: var(--linka);
+  color: var(--text-slaby);
+}
+
+/* --- shot list na kartě (rozbalovací) --- */
+.navsteva-shot {
+  margin-top: 8px;
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  background: var(--panel-2);
+}
+
+.navsteva-shot-souhrn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-slaby);
+  cursor: pointer;
+  list-style: none;
+}
+
+.navsteva-shot-souhrn::-webkit-details-marker {
+  display: none;
+}
+
+.navsteva-shot-souhrn::before {
+  content: "▸";
+  margin-right: 6px;
+  color: var(--text-slaby);
+}
+
+.navsteva-shot[open] > .navsteva-shot-souhrn::before {
+  content: "▾";
+}
+
+.navsteva-shot-pocet {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.navsteva-shot-seznam {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navsteva-shot-prazdny {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 0.8rem;
+  color: var(--text-slaby);
+}
+
+.navsteva-shot-radek {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 0;
+  font-size: 0.85rem;
+}
+
+.navsteva-shot-radek input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 11px;
+}
+
+.navsteva-shot-radek label,
+.navsteva-shot-radek span:last-child {
+  flex: 1 1 auto;
+  align-self: center;
+  cursor: pointer;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.navsteva-shot-znak {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.navsteva-shot-hotovo label,
+.navsteva-shot-hotovo span:last-child {
+  text-decoration: line-through;
+  color: var(--text-slaby);
+}
+
+/* --- poznámka a odkaz na Časosběr --- */
+.navsteva-poznamka {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-slaby);
+  overflow-wrap: anywhere;
+}
+
+.navsteva-odkaz-casosber {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--akcent);
+  text-decoration: none;
+}
+
+.navsteva-odkaz-casosber:hover {
+  text-decoration: underline;
+}
+
+/* --- rychlé akce (posun stavu + detail) --- */
+.navsteva-akce {
+  margin-top: 10px;
+}
+
+/* --- inline panely (termín, vrácení k přepracování) --- */
+.navsteva-inline {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 2px;
+}
+
+.navsteva-inline-mrizka {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.navsteva-pole {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.navsteva-pole label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-slaby);
+}
+
+.navsteva-pole input,
+.navsteva-pole select,
+.navsteva-pole textarea {
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.navsteva-pole textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.navsteva-inline-napoveda {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-slaby);
+}
+
+.navsteva-inline-chyba {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--chyba);
+}
+
+.navsteva-inline-chyba[hidden] {
+  display: none;
+}
+
+/* Stavový řádek zopakovaný v modálu (jen pro čtení) — bez rámečku karty. */
+.navsteva-stavradek-detail {
+  margin: 8px 0 2px;
+}
+
+@media (max-width: 719px) {
+  .navsteva-termin-text {
+    font-size: 0.96rem;
+  }
+
+  .navsteva-inline-mrizka {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Dotykové cíle v sekci Návštěvy — .btn-tiche je v souboru definované až za
+   .btn-mala a přebíjelo mu min-height na 32 px; tady se to vrací zpět na
+   44 px dle KONTRAKT.md §8. Zaškrtávátka shot listu zůstávají 20px jako
+   všude jinde v appce (.pole-radek), ale celý řádek i jeho <label> mají
+   44 px, takže se dá prstem trefit kamkoli do řádku. */
+.btn-mala.btn-tiche {
+  min-height: 44px;
+}
+
+.navsteva-nazev-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.navsteva-shot-radek label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Počet návštěv v roce hned vedle roku (ne až za dělicí linkou) a řádek
+   akcí zarovnaný na spodek karty, ať jsou tlačítka v jedné řadě mřížky
+   pod sebou i u různě dlouhých karet. */
+.navstevy-rok-pocet {
+  order: 0;
+}
+
+.navsteva-akce {
+  margin-top: auto;
+}
+
+/* ------------------------------------------------------------------
+   Sekce Připomínky
+   ------------------------------------------------------------------ */
+
+.karta-pripominka {
+  border-left: 3px solid var(--stav-barva, var(--linka));
+}
+
+.pripominka-tecka {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  margin-right: 8px;
+}
+
+.karta-odpoved {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border-left: 2px solid var(--ok);
+  border-radius: 2px;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.pole-zaskrtavatko {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+/* Doslovný řádek z harmonogramu PORR u milníku. */
+.citace-zdroje {
+  margin: 8px 0 6px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--modra-porr);
+  background: var(--panel-2);
+  color: var(--text-slaby);
+  font-size: 0.86rem;
+  font-style: italic;
+  border-radius: 2px;
+}
+
+/* Login bez config.js — vysvětlení místo mrtvého formuláře. */
+.login-chybi-config {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.login-chybi-config h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  color: var(--text);
+}
+
+.login-chybi-config p {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.login-chybi-config .btn {
+  text-align: center;
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------------
+   Plán stavby — dvousloupec „fifty fifty“
+   (vlevo naše časová osa, vpravo doslovný harmonogram od PORR)
+   ------------------------------------------------------------------ */
+
+/* Mobil first: pod 900 px jsou sloupce prostě pod sebou v pořadí, v jakém je
+   staví view-plan.js — nejdřív náš plán, pak dokument. min-width: 0 na
+   sloupcích je pojistka proti tomu, aby dlouhý řádek dokumentu roztáhl
+   mřížku a rozjel stránku do šířky. */
+.plan-dvousloupec {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.plan-dvousloupec > .plan-sloupec {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+@media (min-width: 900px) {
+  .plan-dvousloupec {
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+}
+
+.plan-zdroj-uvod {
+  margin: 0 0 10px;
+  color: var(--text-slaby);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* Panel je CITACE — stejný jazyk jako .citace-zdroje u milníku: modrá levá
+   linka PORR a jiné pozadí než okolní obsah, ať se to nedá splést s naším
+   textem. */
+.harmonogram-panel {
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--modra-porr);
+  border-radius: 2px;
+  background: var(--panel);
+  padding: 4px 12px 12px;
+}
+
+.harmonogram-summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.harmonogram-summary::-webkit-details-marker {
+  display: none;
+}
+
+.harmonogram-summary::before {
+  content: "▸";
+  margin-right: 8px;
+  color: var(--modra-porr);
+}
+
+.harmonogram-panel[open] .harmonogram-summary::before {
+  content: "▾";
+}
+
+.harmonogram-summary:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 2px;
+}
+
+.harmonogram-telo {
+  padding-top: 4px;
+}
+
+.harmonogram-radky {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Název dokumentu tak, jak je v jeho prvním řádku. */
+.harmonogram-nazev {
+  margin: 0 0 6px;
+  padding: 0 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Mezinadpisy = samotné letopočty z dokumentu. */
+.harmonogram-rok {
+  margin: 14px 0 4px;
+  padding: 8px 8px 0;
+  border-top: 1px solid var(--linka);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--modra-porr);
+}
+
+.harmonogram-radky > .harmonogram-rok:first-of-type {
+  margin-top: 8px;
+}
+
+/* Řádky dokumentu. Dotykový cíl 44 px i u neklikatelných, ať je seznam
+   pravidelný a na mobilu se dá prstem trefit do toho správného. */
+.harmonogram-radek {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 2px solid transparent;
+  border-radius: 2px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--text-slaby);
+  overflow-wrap: anywhere;
+}
+
+/* Řádek, ke kterému máme milník — proklik na osu vlevo. */
+button.harmonogram-radek-klikaci {
+  width: 100%;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  background: transparent;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  color: var(--text);
+  cursor: pointer;
+}
+
+button.harmonogram-radek-klikaci::after {
+  content: "→";
+  margin-left: auto;
+  padding-left: 10px;
+  color: var(--akcent);
+  opacity: 0;
+}
+
+button.harmonogram-radek-klikaci:hover,
+button.harmonogram-radek-klikaci:focus-visible {
+  background: var(--panel-2);
+  border-left-color: var(--akcent);
+}
+
+button.harmonogram-radek-klikaci:hover::after,
+button.harmonogram-radek-klikaci:focus-visible::after {
+  opacity: 1;
+}
+
+button.harmonogram-radek-klikaci:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: -2px;
+}
+
+.harmonogram-zdroj {
+  margin: 12px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--linka);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--text-slaby);
+  overflow-wrap: anywhere;
+}
+
+/* Krátké zvýraznění milníku po prokliku z dokumentu. Selektor je dvojtřídní
+   schválně — .osa-polozka:last-child výš v souboru přebíjí barvu levé linky
+   a jednotřídní pravidlo by u posledního milníku nebylo vidět. */
+.osa-polozka {
+  transition: background-color 0.25s ease, border-left-color 0.25s ease;
+}
+
+.osa-polozka.osa-polozka-zvyraznena {
+  border-left-color: var(--akcent);
+  background: rgba(140, 198, 63, 0.10);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .osa-polozka {
+    transition: none;
+  }
+}
+
+/* Rozbalovátko komentářů je napříč appkou jen ~20 px vysoké — na mobilu se
+   do něj palcem netrefíš. KONTRAKT.md S 8 žádá 44 px. Řešíme centrálně,
+   ať to sedí ve všech sekcích stejně. */
+details > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* Souhrn galerie a dlaždic má vlastní výšku, tu nepřepisujeme. */
+.dlazdice details > summary,
+.harmonogram-panel > summary {
+  min-height: 44px;
+}
+
+/* ------------------------------------------------------------------
+   Návštěvy — jemné barevné rozdělení do tří skupin (Franta 30. 8. 2026).
+   Záměrně tlumené: nese to informaci, ale nepřebíjí kontrolku stavu
+   ani obsah karty. Barva je vždy jen podklad + levá linka, nikdy text.
+   ------------------------------------------------------------------ */
+
+/* PROBĚHLÉ (a zrušené) — odloženo dozadu, tlumené a chladné. */
+.navsteva-karta.navsteva-skupina-probehlo {
+  background:
+    linear-gradient(90deg, rgba(74, 157, 95, 0.07), rgba(74, 157, 95, 0) 45%),
+    var(--panel);
+  border-left: 3px solid rgba(74, 157, 95, 0.55);
+  opacity: 0.88;
+}
+
+/* NEJBLIŽŠÍ — jediná, na které teď záleží. */
+.navsteva-karta.navsteva-skupina-nejblizsi {
+  background:
+    linear-gradient(90deg, rgba(140, 198, 63, 0.13), rgba(140, 198, 63, 0) 55%),
+    var(--panel-2);
+  border-left: 3px solid var(--akcent);
+  box-shadow: 0 0 0 1px rgba(140, 198, 63, 0.22);
+}
+
+/* DALŠÍ NÁVRHY — neutrální, ať netahají pozornost. */
+.navsteva-karta.navsteva-skupina-navrh {
+  background:
+    linear-gradient(90deg, rgba(154, 163, 175, 0.05), rgba(154, 163, 175, 0) 40%),
+    var(--panel);
+  border-left: 3px solid var(--linka);
+}
+
+/* Čeká na schválení je pořád „návrh", ale je u PORR — dáme tomu teplejší tón. */
+.navsteva-karta.navsteva-skupina-navrh.nav-stav-ke-schvaleni {
+  background:
+    linear-gradient(90deg, rgba(224, 160, 32, 0.09), rgba(224, 160, 32, 0) 45%),
+    var(--panel);
+  border-left: 3px solid rgba(224, 160, 32, 0.6);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .navsteva-karta.navsteva-skupina-probehlo { opacity: 1; }
+}
