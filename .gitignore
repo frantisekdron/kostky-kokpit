@@ -46,3 +46,6 @@ TODO_*.md
 __pycache__/
 *.pyc
 config.local.js
+
+# Papirek s hesly z nastav_pristup.py --hesla-vygeneruj. NIKDY do gitu.
+HESLA_k_rozeslani.txt
