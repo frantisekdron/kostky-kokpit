@@ -28,6 +28,12 @@
  * souhrn: celkový počet materiálů a součet velikostí (sečteno jen to, co jde
  * rozparsovat na GB/MB).
  *
+ * Komentář může někoho OZNAČIT — pole `zminky` (pole os-id) v záznamu
+ * aktivity. Označenému má po zápisu přijít upozornění na mail; rozesílá
+ * ho GitHub Action nad datovým repem, appka mail odeslat neumí. Výběr lidí
+ * staví společná Util.vyberZminek(), řádek pod komentářem Util.radekZminek().
+ * Starší komentáře pole nemají — chybějící se bere jako prázdné (Util.zminky).
+ *
  * Podle KONTRAKT_DODATEK.md (§B.1/§C.4): materiály s `prijemce:"Emauzy"` patří do
  * samostatné sekce "Materiál pro Emauzy" (js/view-emauzy.js) a v této sekci se
  * NEZOBRAZUJÍ (filtr `prijemce !== "Emauzy"`, chybějící hodnota = "PORR"). Formulář
@@ -245,6 +251,9 @@
     text.textContent = k.text;
     wrap.appendChild(text);
 
+    var radekZminek = Util.radekZminek(Util.zminky(k));
+    if (radekZminek) wrap.appendChild(radekZminek);
+
     var muzeSmazat = Auth.can("komentare.smazat.cizi") || (Auth.ja && Auth.ja.id === k.kdo);
     if (muzeSmazat) {
       var smazat = document.createElement("button");
@@ -291,6 +300,10 @@
     pole.appendChild(textarea);
     form.appendChild(pole);
 
+    // Koho o komentáři upozornit mailem. Sebe si člověk neoznačuje.
+    var vyberZminek = Util.vyberZminek({ vynech: (Auth.ja && Auth.ja.osoba_id) || null });
+    form.appendChild(vyberZminek.prvek);
+
     var tlacitko = document.createElement("button");
     tlacitko.type = "submit";
     tlacitko.className = "btn btn-mala btn-primarni";
@@ -309,6 +322,7 @@
           entita_id: entitaId,
           druh: "komentar",
           text: text,
+          zminky: vyberZminek.vybrane(),
           kdo: Auth.ja.id,
           kdy: new Date().toISOString(),
           smazano: null

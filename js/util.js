@@ -14,6 +14,11 @@
  *   Util.stahni(nazevSouboru, obsah, mime) — stazeni souboru pres Blob
  *   Util.slunce(datumIso, lat, lon)    — vychod/zapad/zlata hodina (NOAA algoritmus)
  *   Util.velikostNaGb(text)            — cislo v GB z textu "13 GB" / "8,1 GB" / "512 MB"
+ *   Util.vyberZminek(nastaveni)        — spolecny vyber lidi k oznaceni,
+ *                                        vraci { prvek, vybrane() }
+ *   Util.zminky(zaznam)                — pole os-id ze zaznamu (chybi = prazdne)
+ *   Util.zminkyText(ids)               — radek "Upozorneni: Jmeno, Jmeno" jako text
+ *   Util.radekZminek(ids)              — tentyz radek jako prvek | null
  *
  * Zadne zavislosti, zadne CDN, cisty ES2020. Vsechny vnitrni pomocne funkce
  * (parsovani ISO data, Julianske datum, NOAA vypocet, ICS zalamovani radku, ...)
@@ -564,6 +569,255 @@ var Util = (function () {
     if (jednotka === "MB") return cislo / 1024;
     if (jednotka === "TB") return cislo * 1024;
     return null;
+  };
+
+
+  // ---------------------------------------------------------------------
+  // Označení lidí ("zmínky") — společný prvek pro komentáře i připomínky.
+  //
+  // Kdo je označený, tomu má po zápisu (= po commitu do datového repa)
+  // přijít upozornění na mail. Rozesílá ho GitHub Action nad daty, appka
+  // sama žádný mail odeslat neumí — proto se tu jen ukládá pole os-id.
+  //
+  // POZOR: e-mail máme jen u dvou lidí ze sedmi. Označit jde kohokoli
+  // (označení dává smysl i bez mailu — je to stopa v datech), ale u člověka
+  // bez adresy to musí být vidět NAHLAS, ať nikdo nečeká odpověď na mail,
+  // který nikdy neodešel.
+  // ---------------------------------------------------------------------
+
+  var VETA_ZMINEK = "Komu má o tomhle přijít upozornění na mail?";
+  var POZNAMKA_BEZ_MAILU = "bez e-mailu — upozornění nedostane";
+  var POZNAMKA_NEDORAZILO = "nemá e-mail, upozornění nedorazilo";
+
+  // Strany se zobrazují v tomto pořadí; cokoli jiného se řadí za ně.
+  var PORADI_STRAN = ["PORR", "Metrostav", "FD"];
+  var NAZVY_STRAN = { PORR: "PORR", Metrostav: "Metrostav", FD: "František Dron" };
+
+  // Seznam lidí bereme z App.polozky("lide") — App.data drží celou obálku,
+  // takže se nikdy nesahá do App.data přímo. Když App ještě není (util.js se
+  // načítá dřív), vrátíme prázdno místo výjimky.
+  function vsichniLide() {
+    if (window.App && typeof window.App.polozky === "function") {
+      return window.App.polozky("lide") || [];
+    }
+    return [];
+  }
+
+  function maMail(osoba) {
+    return !!(osoba && typeof osoba.email === "string" && osoba.email.trim());
+  }
+
+  function nazevStrany(strana) {
+    if (!strana) return "Ostatní";
+    return NAZVY_STRAN[strana] || strana;
+  }
+
+  function seskupPoStranach(lide) {
+    var poradi = [];
+    var mapa = {};
+    lide.forEach(function (o) {
+      var klic = o.strana || "";
+      if (!mapa[klic]) {
+        mapa[klic] = [];
+        poradi.push(klic);
+      }
+      mapa[klic].push(o);
+    });
+    poradi.sort(function (a, b) {
+      var ia = PORADI_STRAN.indexOf(a);
+      var ib = PORADI_STRAN.indexOf(b);
+      if (ia === -1) ia = PORADI_STRAN.length;
+      if (ib === -1) ib = PORADI_STRAN.length;
+      if (ia !== ib) return ia - ib;
+      return String(a).localeCompare(String(b), "cs");
+    });
+    return poradi.map(function (klic) {
+      return { strana: klic, nazev: nazevStrany(klic), lide: mapa[klic] };
+    });
+  }
+
+  // Normalizace pole zmínek. Starší záznamy pole `zminky` vůbec nemají —
+  // chybějící i rozbité se bere jako prázdné, nikdy jako chyba.
+  Util.zminky = function (zaznam) {
+    if (!zaznam || !Array.isArray(zaznam.zminky)) return [];
+    return zaznam.zminky.filter(function (id) {
+      return typeof id === "string" && id;
+    });
+  };
+
+  /*
+   * Util.vyberZminek(nastaveni) -> { prvek, vybrane }
+   *
+   * nastaveni (vše nepovinné):
+   *   vybrane  — pole os-id, která mají být předem zaškrtnutá
+   *   vynech   — os-id, které se v nabídce vůbec neukáže. Sem patří
+   *              přihlášený člověk: kdo píše, ten upozornění nedostává.
+   *   veta     — text nad výběrem (výchozí VETA_ZMINEK)
+   *   otevreno — rozbalit hned? (výchozí: jen když už je něco zaškrtnuté)
+   *   lide     — vlastní seznam osob místo App.polozky("lide")
+   *
+   * `prvek` se jen vloží do formuláře, `vybrane()` vrátí pole os-id
+   * zaškrtnutých v okamžiku volání (čte se ze živého DOM, ne z kopie).
+   */
+  Util.vyberZminek = function (nastaveni) {
+    nastaveni = nastaveni || {};
+    var predvybrane = Array.isArray(nastaveni.vybrane) ? nastaveni.vybrane : [];
+    var vynech = nastaveni.vynech || null;
+
+    var lide = (Array.isArray(nastaveni.lide) ? nastaveni.lide : vsichniLide())
+      .filter(function (o) {
+        return o && o.id && !o.smazano && o.id !== vynech;
+      });
+
+    if (!lide.length) {
+      var prazdno = document.createElement("p");
+      prazdno.className = "napoveda zminky-prazdno";
+      prazdno.textContent = "Není koho označit — nikdo další v týmu není.";
+      return {
+        prvek: prazdno,
+        vybrane: function () { return []; }
+      };
+    }
+
+    var zaskrtavatka = [];
+
+    var obal = document.createElement("details");
+    obal.className = "zminky";
+
+    var shrnuti = document.createElement("summary");
+    shrnuti.className = "zminky-summary";
+    var veta = document.createElement("span");
+    veta.className = "zminky-veta";
+    veta.textContent = nastaveni.veta || VETA_ZMINEK;
+    shrnuti.appendChild(veta);
+    var pocet = document.createElement("span");
+    pocet.className = "zminky-pocet";
+    shrnuti.appendChild(pocet);
+    obal.appendChild(shrnuti);
+
+    var telo = document.createElement("div");
+    telo.className = "zminky-telo";
+
+    seskupPoStranach(lide).forEach(function (skupina) {
+      var blok = document.createElement("div");
+      blok.className = "zminky-skupina";
+
+      var nadpis = document.createElement("p");
+      nadpis.className = "zminky-strana";
+      nadpis.textContent = skupina.nazev;
+      blok.appendChild(nadpis);
+
+      skupina.lide.forEach(function (o) {
+        var radek = document.createElement("label");
+        radek.className = "zminky-polozka";
+
+        var vstup = document.createElement("input");
+        vstup.type = "checkbox";
+        vstup.value = o.id;
+        vstup.checked = predvybrane.indexOf(o.id) !== -1;
+        vstup.addEventListener("change", obnovPocet);
+        radek.appendChild(vstup);
+
+        // Jméno a poznámka jsou v jednom obalu vedle zaškrtávátka. Na úzkém
+        // displeji se poznámka zalomí POD jméno a zůstane u něj — kdyby byla
+        // přímým sourozencem zaškrtávátka, zalomila by se doleva pod něj
+        // a četla by se jako poznámka dalšího člověka.
+        var text = document.createElement("span");
+        text.className = "zminky-text";
+
+        var jmeno = document.createElement("span");
+        jmeno.className = "zminky-jmeno";
+        jmeno.textContent = o.jmeno || o.id;
+        text.appendChild(jmeno);
+
+        // Bez adresy mail neodejde — a musí to být vidět dřív, než někdo
+        // člověka označí a začne čekat na odpověď.
+        if (!maMail(o)) {
+          radek.classList.add("zminky-polozka-bez-mailu");
+          var poznamka = document.createElement("span");
+          poznamka.className = "zminky-bez-mailu";
+          poznamka.textContent = POZNAMKA_BEZ_MAILU;
+          text.appendChild(poznamka);
+        }
+
+        radek.appendChild(text);
+
+        zaskrtavatka.push(vstup);
+        blok.appendChild(radek);
+      });
+
+      telo.appendChild(blok);
+    });
+
+    obal.appendChild(telo);
+
+    function vybrane() {
+      var ids = [];
+      for (var i = 0; i < zaskrtavatka.length; i++) {
+        if (zaskrtavatka[i].checked) ids.push(zaskrtavatka[i].value);
+      }
+      return ids;
+    }
+
+    function obnovPocet() {
+      var kolik = vybrane().length;
+      pocet.textContent = kolik ? "označeno: " + kolik : "";
+      pocet.hidden = !kolik;
+    }
+
+    obnovPocet();
+    obal.open =
+      nastaveni.otevreno === undefined ? vybrane().length > 0 : !!nastaveni.otevreno;
+
+    return { prvek: obal, vybrane: vybrane };
+  };
+
+  // Text řádku "Upozorněni: Jméno, Jméno" — prázdný řetězec, když nikdo
+  // označený není. Pro sekce, které skládají HTML řetězcem (view-navstevy.js);
+  // ty ho musí prohnat Util.esc.
+  Util.zminkyText = function (ids, nastaveni) {
+    nastaveni = nastaveni || {};
+    var seznam = Array.isArray(ids) ? ids.filter(function (x) { return !!x; }) : [];
+    if (!seznam.length) return "";
+
+    var lide = Array.isArray(nastaveni.lide) ? nastaveni.lide : vsichniLide();
+    var casti = seznam.map(function (id) {
+      var osoba = najdiPodleId(lide, id);
+      var jmeno = osoba && osoba.jmeno ? osoba.jmeno : String(id);
+      return maMail(osoba) ? jmeno : jmeno + " (" + POZNAMKA_NEDORAZILO + ")";
+    });
+    return "Upozorněni: " + casti.join(", ");
+  };
+
+  // Tentýž řádek jako prvek — poznámka u člověka bez mailu je ve vlastním
+  // <span>, aby šla ztlumit. Vrací null, když není koho vypsat.
+  Util.radekZminek = function (ids, nastaveni) {
+    nastaveni = nastaveni || {};
+    var seznam = Array.isArray(ids) ? ids.filter(function (x) { return !!x; }) : [];
+    if (!seznam.length) return null;
+
+    var lide = Array.isArray(nastaveni.lide) ? nastaveni.lide : vsichniLide();
+
+    var radek = document.createElement("p");
+    radek.className = "karta-meta zminky-radek";
+    radek.appendChild(document.createTextNode("Upozorněni: "));
+
+    seznam.forEach(function (id, poradi) {
+      if (poradi) radek.appendChild(document.createTextNode(", "));
+      var osoba = najdiPodleId(lide, id);
+      var jmeno = document.createElement("span");
+      jmeno.className = "zminky-radek-jmeno";
+      jmeno.textContent = osoba && osoba.jmeno ? osoba.jmeno : String(id);
+      radek.appendChild(jmeno);
+      if (!maMail(osoba)) {
+        var poznamka = document.createElement("span");
+        poznamka.className = "zminky-radek-poznamka";
+        poznamka.textContent = " (" + POZNAMKA_NEDORAZILO + ")";
+        radek.appendChild(poznamka);
+      }
+    });
+
+    return radek;
   };
 
   return Util;

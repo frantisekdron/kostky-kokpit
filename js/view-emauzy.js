@@ -34,6 +34,9 @@
  * jakmile je skript doplní, galerie se objeví sama a nic se tu nemusí měnit.
  *
  * Čte App.polozky("materialy"), zápis obstarává MaterialyUI (GH.zmen + App.uloz).
+ * Označení lidí u komentářů (pole `zminky`) tu funguje samo — komentáře staví
+ * ta samá MaterialyUI, takže tahle sekce o nich nic vlastního neví.
+ *
  * Nevystavuje žádný globální objekt — jen se při načtení zaregistruje jako sekce
  * 'emauzy' přes App.registrujSekci('emauzy', vykresli).
  */

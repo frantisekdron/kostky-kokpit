@@ -3476,3 +3476,148 @@ details > summary {
 .harmonogram-telo {
   font-size: 0.86rem;
 }
+
+/* ------------------------------------------------------------------
+   Označení lidí („zmínky") u komentářů a připomínek.
+
+   Kdo je označený, tomu po zápisu odejde upozornění na mail (rozesílá ho
+   GitHub Action nad datovým repem, ne appka). Výběr je schválně zabalený
+   do <details> — je to nepovinný krok navíc a nesmí přebít samotné psaní.
+
+   Dotykové cíle: řádek s člověkem má min. 44 px, souhrn si bere 44 px
+   z centrálního pravidla `details > summary` výš v souboru.
+   ------------------------------------------------------------------ */
+
+details.zminky {
+  margin: 4px 0 2px;
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  background: var(--panel-2);
+}
+
+details.zminky > summary {
+  padding: 4px 10px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-slaby);
+  list-style: none;
+}
+
+details.zminky > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Vlastní šipka: souhrn je display:flex (centrální pravidlo pro dotykový
+   cíl), a tím prohlížeč nativní trojúhelníček schová. */
+details.zminky > summary::before {
+  content: "▸";
+  color: var(--akcent);
+}
+
+details.zminky[open] > summary::before {
+  content: "▾";
+}
+
+.zminky-veta {
+  flex: 1 1 auto;
+}
+
+.zminky-pocet {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--akcent);
+  color: var(--pozadi);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.zminky-telo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--linka);
+}
+
+.zminky-strana {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-slaby);
+}
+
+.zminky-skupina {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zminky-polozka {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 2px;
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* Jméno + poznámka drží pohromadě: při zalomení jde poznámka pod jméno,
+   ne doleva pod zaškrtávátko (kde by se četla jako poznámka dalšího). */
+.zminky-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+
+.zminky-polozka input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--akcent);
+  cursor: pointer;
+}
+
+/* Bez e-mailu upozornění neodejde — proto varovná barva, ne šedá. */
+.zminky-bez-mailu {
+  font-size: 0.74rem;
+  line-height: 1.3;
+  color: var(--varovani);
+}
+
+.zminky-prazdno {
+  margin: 4px 0;
+}
+
+/* Řádek „Upozorněni: …" pod komentářem / připomínkou. */
+.zminky-radek {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.zminky-radek-jmeno {
+  color: var(--text);
+}
+
+.zminky-radek-poznamka {
+  color: var(--text-slaby);
+  font-style: italic;
+}
+
+/* ------------------------------------------------------------------ */
+/* Vystraha o nenactenych datech (nad #obsah, sekce si ji nesmazou)     */
+/* ------------------------------------------------------------------ */
+
+#vystraha-data:empty { display: none; }
+
+#vystraha-data {
+  margin: 0 0 18px;
+}
+
+#vystraha-data .karta-upozorneni button {
+  margin-top: 10px;
+}

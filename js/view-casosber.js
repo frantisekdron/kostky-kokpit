@@ -68,6 +68,13 @@
  * do paměti relace zůstává jako pojistka pro případ, že by se datová
  * vrstva někdy změnila.
  *
+ *
+ * Komentář může někoho OZNAČIT — pole `zminky` (pole os-id) v záznamu
+ * aktivity. Označenému má po zápisu přijít upozornění na mail; rozesílá
+ * ho GitHub Action nad datovým repem, appka mail odeslat neumí. Výběr lidí
+ * staví společná Util.vyberZminek(), řádek pod komentářem Util.radekZminek().
+ * Starší komentáře pole nemají — chybějící se bere jako prázdné (Util.zminky).
+ *
  * Nevystavuje žádný nový globální objekt — jen se registruje jako sekce
  * "casosber" přes App.registrujSekci().
  */
@@ -1108,6 +1115,9 @@
         text.textContent = k.text;
         wrap.appendChild(text);
 
+        var radekZminek = Util.radekZminek(Util.zminky(k));
+        if (radekZminek) wrap.appendChild(radekZminek);
+
         var muzeSmazat =
           Auth.can("komentare.smazat.cizi") || (window.Auth && Auth.ja && Auth.ja.id === k.kdo);
         if (muzeSmazat) {
@@ -1160,6 +1170,10 @@
     pole.appendChild(textarea);
     form.appendChild(pole);
 
+    // Koho o komentáři upozornit mailem. Sebe si člověk neoznačuje.
+    var vyberZminek = Util.vyberZminek({ vynech: (window.Auth && Auth.ja && Auth.ja.osoba_id) || null });
+    form.appendChild(vyberZminek.prvek);
+
     var tlacitko = document.createElement("button");
     tlacitko.type = "submit";
     tlacitko.className = "btn btn-mala btn-primarni";
@@ -1178,6 +1192,7 @@
           entita_id: mistoId,
           druh: "komentar",
           text: text,
+          zminky: vyberZminek.vybrane(),
           kdo: mojeId(),
           kdy: new Date().toISOString(),
           smazano: null

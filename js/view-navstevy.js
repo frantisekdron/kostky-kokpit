@@ -47,6 +47,12 @@
  * komentář js/app.js). Po každém zápisu (GH.zmen) uloží celou vrácenou
  * obálku pomocí App.uloz(soubor, obsah).
  *
+ * Komentář může někoho OZNAČIT — pole `zminky` (pole os-id) v záznamu
+ * aktivity. Označenému má po zápisu přijít upozornění na mail; rozesílá
+ * ho GitHub Action nad datovým repem, appka mail odeslat neumí. Výběr lidí
+ * staví společná Util.vyberZminek(), řádek pod komentářem Util.radekZminek().
+ * Starší komentáře pole nemají — chybějící se bere jako prázdné (Util.zminky).
+ *
  * Nevystavuje žádný nový globální objekt — jen se při načtení stránky
  * zaregistruje jako sekce "navstevy" přes App.registrujSekci(). Všechna
  * vlastní pomocná jména jsou schovaná uvnitř IIFE.
@@ -860,6 +866,14 @@
     return html;
   }
 
+  // Řádek „Upozorněni: …" u komentáře. Tahle sekce skládá HTML řetězcem,
+  // takže se text bere z Util.zminkyText a POVINNĚ prochází esc().
+  function htmlRadekZminek(zaznam) {
+    var text = Util.zminkyText(Util.zminky(zaznam));
+    if (!text) return "";
+    return '<p class="karta-meta zminky-radek">' + esc(text) + "</p>";
+  }
+
   function htmlKomentare(n, aktivita, lide, smiKomentovat, smiMazatCizi) {
     var mojeId = (window.Auth && Auth.ja && Auth.ja.id) || null;
     var seznam = aktivita.filter(function (a) {
@@ -879,7 +893,8 @@
             ? ' <button type="button" class="btn-ikonovy btn-nebezpecny" data-nav-akce="smazat-komentar" data-komentar="' +
               esc(a.id) + '" aria-label="Smazat komentář" title="Smazat" style="float:right">×</button>'
             : "") +
-          '</div><div class="karta-popis">' + esc(a.text) + "</div></div>";
+          '</div><div class="karta-popis">' + esc(a.text) + "</div>" +
+          htmlRadekZminek(a) + "</div>";
       });
       html += "</div>";
     }
@@ -887,6 +902,10 @@
       html += '<form data-nav-akce-form="pridat-komentar" style="display:flex;flex-direction:column;gap:8px">' +
         '<textarea name="text" rows="2" required placeholder="Napsat komentář…" ' +
         'style="background:var(--panel-2);border:1px solid var(--linka);color:var(--text);border-radius:2px;padding:10px 12px"></textarea>' +
+        // Sem doplní výběr lidí k označení dopluVyberZminek() hned po vložení
+        // HTML — Util.vyberZminek vrací PRVEK, ne řetězec (a je to tak dobře:
+        // žádné skládání uživatelských dat do innerHTML).
+        '<div data-zminky-misto></div>' +
         '<div><button type="submit" class="btn btn-primarni">Odeslat</button></div></form>';
     }
     html += "</div>";
@@ -927,6 +946,23 @@
 
   // ---- modál — otevření / překreslení ----
 
+  // Detail se vykresluje jedním innerHTML, ale výběr lidí k označení je
+  // živý prvek z Util.vyberZminek — proto se po každém překreslení vloží
+  // na svoje místo znovu. `vyberZminekKomentare` drží ten aktuální, ať se
+  // dá při odeslání zeptat, kdo je zaškrtnutý.
+  var vyberZminekKomentare = null;
+
+  function dopluVyberZminek(koren) {
+    vyberZminekKomentare = null;
+    if (!koren) return;
+    var misto = koren.querySelector("[data-zminky-misto]");
+    if (!misto) return;
+    vyberZminekKomentare = Util.vyberZminek({
+      vynech: (window.Auth && Auth.ja && Auth.ja.osoba_id) || null
+    });
+    misto.appendChild(vyberZminekKomentare.prvek);
+  }
+
   function otevriDetail(id) {
     var n = najdiPodleId(polozkyZeSouboru("navstevy"), id);
     if (!n) return;
@@ -935,12 +971,14 @@
     modalObsahUzel = document.createElement("div");
     napojPosluchaceDetail(modalObsahUzel);
     modalObsahUzel.innerHTML = htmlDetail(n);
+    dopluVyberZminek(modalObsahUzel);
 
     modalRef = otevriModal("Návštěva — " + n.nazev, modalObsahUzel);
     modalRef.dlg.addEventListener("close", function () {
       idOtevrenehoDetailu = null;
       modalObsahUzel = null;
       modalRef = null;
+      vyberZminekKomentare = null;
     });
   }
 
@@ -952,6 +990,7 @@
       return;
     }
     modalObsahUzel.innerHTML = htmlDetail(n);
+    dopluVyberZminek(modalObsahUzel);
   }
 
   // ---- mutace dat ----
@@ -1065,7 +1104,7 @@
 
   // Komentář se zapisuje přímo do aktivita.json (entita_id vyplněné) — auto-log
   // z GH.zmen entita_id nedostává, viz POZNAMKY_B-krypto-auth.md bod 1.
-  function pridatKomentarZaznam(entitaId, text) {
+  function pridatKomentarZaznam(entitaId, text, zminky) {
     return GH.zmen("aktivita", function (polozky) {
       polozky.push({
         id: GH.noveId("akt"),
@@ -1073,6 +1112,7 @@
         entita_id: entitaId,
         druh: "komentar",
         text: text,
+        zminky: Array.isArray(zminky) ? zminky : [],
         kdo: (window.Auth && Auth.ja && Auth.ja.id) || "neznamy",
         kdy: new Date().toISOString(),
         smazano: null
@@ -1429,7 +1469,8 @@
       } else if (typAkce === "pridat-komentar") {
         var pole = form.querySelector('[name="text"]');
         var txt = pole ? pole.value.trim() : "";
-        if (txt) pridatKomentarZaznam(id, txt).catch(poChybe);
+        var oznaceni = vyberZminekKomentare ? vyberZminekKomentare.vybrane() : [];
+        if (txt) pridatKomentarZaznam(id, txt, oznaceni).catch(poChybe);
       }
     });
   }

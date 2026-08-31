@@ -529,6 +529,10 @@
       return Promise.reject(new Error("Datová vrstva (GH) není načtená."));
     }
     return GH.nactiVse().then(function (vysledky) {
+      // gh.js si chybejici soubory odklada do __chybejici. Driv to nikdo
+      // necetl, takze se sekce s nenactenymi daty tvarila jako PRAZDNA —
+      // vypadalo to, ze zaznamy zmizely, i kdyz v repu poradne byly.
+      App.chybejici = Array.isArray(vysledky.__chybejici) ? vysledky.__chybejici : [];
       Object.keys(vysledky).forEach(function (klic) {
         var zaznam = vysledky[klic];
         if (zaznam && zaznam.data) {
@@ -594,10 +598,80 @@
     });
   }
 
+  // Ktery datovy soubor sekce potrebuje, aby se dalo poznat, ze je prazdna
+  // kvuli chybe, a ne proto, ze v ni nic neni. Kos a Prehled ctou vic souboru.
+  var SOUBOR_SEKCE = {
+    navstevy: "navstevy", plan: "plan", casosber: "casosber",
+    materialy: "materialy", emauzy: "materialy",
+    pripominky: "pripominky", lide: "lide", sprava: "pristupy"
+  };
+
+  // Vlastni misto NAD #obsah. Do #obsah to patrit nemuze: sekce si ho pri
+  // vykresleni promazavaji, takze by hlasku smazaly hned po vlozeni.
+  function misroProVystrahu() {
+    var uz = document.getElementById("vystraha-data");
+    if (uz) return uz;
+    var obsah = document.getElementById("obsah");
+    if (!obsah || !obsah.parentNode) return null;
+    var box = document.createElement("div");
+    box.id = "vystraha-data";
+    box.setAttribute("role", "status");
+    obsah.parentNode.insertBefore(box, obsah);
+    return box;
+  }
+
+  function zobrazVystrahu(klic) {
+    var box = misroProVystrahu();
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var karta = hlaskaONactenych(klic);
+    if (karta) box.appendChild(karta);
+  }
+
+  function hlaskaONactenych(klic) {
+    var chybejici = App.chybejici || [];
+    if (!chybejici.length) return null;
+    var soubor = SOUBOR_SEKCE[klic];
+    var tyka = klic === "prehled" || klic === "kos"
+      ? chybejici.slice()
+      : (chybejici.indexOf(soubor) !== -1 ? [soubor] : []);
+    if (!tyka.length) return null;
+
+    var karta = App.el("div", "karta-upozorneni");
+    var text = App.el("div");
+    text.appendChild(App.el("strong", null, "Data se teď nenačetla."));
+    text.appendChild(App.el("p", "karta-meta",
+      "Nepodařilo se stáhnout: " + tyka.join(", ") + ". Co je níž, proto nemusí " +
+      "být úplné. Nic se neztratilo — záznamy jsou uložené, jen je teď nevidíme. " +
+      "Nezapisujte sem, dokud se načtení nepovede."));
+    var tlacitko = App.el("button", "tlacitko tlacitko-vedlejsi", "Načíst znovu");
+    tlacitko.type = "button";
+    tlacitko.addEventListener("click", function () {
+      tlacitko.disabled = true;
+      tlacitko.textContent = "Načítám…";
+      nactiData()
+        .then(function () {
+          App.toast((App.chybejici || []).length
+            ? "Některá data se pořád nenačetla." : "Data načtena.",
+            (App.chybejici || []).length ? "chyba" : "ok");
+          App.prekresli();
+        })
+        .catch(function () {
+          tlacitko.disabled = false;
+          tlacitko.textContent = "Načíst znovu";
+          App.toast("Načtení se nepovedlo.", "chyba");
+        });
+    });
+    text.appendChild(tlacitko);
+    karta.appendChild(text);
+    return karta;
+  }
+
   function renderObsah(klic, presunFokus) {
     var kontejner = document.getElementById("obsah");
     if (!kontejner) return;
     while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
+    zobrazVystrahu(klic);
     var fn = App._registrovaneSekce && App._registrovaneSekce[klic];
     if (typeof fn === "function") {
       try {
@@ -605,7 +679,8 @@
       } catch (chyba) {
         console.error('Chyba při vykreslování sekce "' + klic + '":', chyba);
         while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
-        kontejner.textContent = "Sekce se nenačetla.";
+        zobrazVystrahu(klic);
+        kontejner.appendChild(App.el("p", null, "Sekce se nenačetla."));
         App.toast("Sekci se nepodařilo vykreslit.", "chyba");
       }
     } else {

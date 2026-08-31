@@ -5,7 +5,13 @@
  *
  * Data: data/pripominky.json, obálka { verze, zmeneno, zmenil, polozky }.
  * Položka: { id, cislo, druh, nazev, popis, kde, stav, zavaznost, kdo, kdy,
- *            vyresil, vyreseno_kdy, odpoved, smazano }
+ *            vyresil, vyreseno_kdy, odpoved, zminky, smazano }
+ *
+ * `zminky` je pole os-id lidí, kterým má o připomínce přijít upozornění na
+ * mail (rozesílá ho GitHub Action nad datovým repem — appka mail odeslat
+ * neumí). Starší záznamy pole nemají, chybějící = prázdné (Util.zminky).
+ * Když někdo připomínku vyřeší, přidá se mezi zmínky její autor, ať se
+ * dozví, že je hotová.
  *
  * Práva: pripominky.pridat (superadmin/admin/editor) = smí zapsat připomínku
  *        pripominky.resit  (superadmin/admin)        = smí měnit stav a odpovídat
@@ -98,6 +104,11 @@
       radky.push("");
       radky.push("POZOR: tohle mi brání v práci.");
     }
+    var radekZminek = Util.zminkyText(data.zminky);
+    if (radekZminek) {
+      radky.push("");
+      radky.push(radekZminek);
+    }
     radky.push("");
     var ja = Auth.ja && Auth.ja.jmeno ? Auth.ja.jmeno : "";
     if (ja) radky.push("Píše: " + ja);
@@ -173,13 +184,22 @@
     obalBlokuje.appendChild(document.createTextNode(" Brání mi to v práci"));
     form.appendChild(obalBlokuje);
 
+    // Koho o připomínce upozornit mailem. Sám sebe si člověk neoznačuje —
+    // kdo píše, ten upozornění nedostává.
+    var vyberZminek = Util.vyberZminek({
+      vybrane: Util.zminky(existujici),
+      vynech: mojeOsobaId()
+    });
+    form.appendChild(vyberZminek.prvek);
+
     function sesbirej() {
       return {
         druh: vyberDruhu.value,
         kde: vyberKde.value,
         nazev: vstupNazev.value.trim(),
         popis: vstupPopis.value.trim(),
-        zavaznost: vstupBlokuje.checked ? "blokuje" : "bezna"
+        zavaznost: vstupBlokuje.checked ? "blokuje" : "bezna",
+        zminky: vyberZminek.vybrane()
       };
     }
 
@@ -269,6 +289,7 @@
           vyresil: null,
           vyreseno_kdy: null,
           odpoved: "",
+          zminky: data.zminky || [],
           smazano: null
         });
         popisZmeny = "Nová připomínka: " + data.nazev;
@@ -280,6 +301,7 @@
         cil.popis = data.popis;
         cil.kde = data.kde;
         cil.zavaznost = data.zavaznost;
+        cil.zminky = data.zminky || [];
         popisZmeny = "Upravena připomínka č. " + cil.cislo;
       }
     }, popisZmeny || "Připomínka")
@@ -304,6 +326,17 @@
       if (novyStav === "hotovo" || novyStav === "zamitnuto") {
         cil.vyresil = mojeOsobaId();
         cil.vyreseno_kdy = new Date().toISOString();
+        // Autor se musí dozvědět, že je jeho připomínka vyřízená — označíme
+        // ho tedy sami. Upozornění posíláme i bez odpovědi: "hotovo" bez
+        // vysvětlení je pořád zpráva, kterou ten člověk potřebuje. Sám sobě
+        // ho ale nikdo neposílá.
+        var autor = cil.kdo;
+        var stavajici = Util.zminky(cil);
+        if (autor && autor !== mojeOsobaId() && stavajici.indexOf(autor) === -1) {
+          cil.zminky = stavajici.concat([autor]);
+        } else {
+          cil.zminky = stavajici;
+        }
       } else {
         cil.vyresil = null;
         cil.vyreseno_kdy = null;
@@ -381,6 +414,9 @@
       karta.appendChild(App.el("p", "karta-meta",
         "Vyřídil(a) " + App.jmenoOsoby(p.vyresil) + " · " + Util.formatCas(p.vyreseno_kdy)));
     }
+
+    var radekZminek = Util.radekZminek(Util.zminky(p));
+    if (radekZminek) karta.appendChild(radekZminek);
 
     var akce = App.el("div", "karta-akce");
 
