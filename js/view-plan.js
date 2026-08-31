@@ -72,7 +72,7 @@
 
   // Panel s původním harmonogramem: sbalení si pamatujeme jen v paměti (po
   // obnovení stránky je zase rozbalený — kontrakt nechce další localStorage).
-  var panelZdrojeOtevreny = true;
+  var panelZdrojeOtevreny = false;   // Franta 31. 8.: zavřený, na rozkliknutí
 
   // Mapa id milníku -> jeho uzel v ose. Plní se při každém vykreslení, slouží
   // k proklikům z pravého sloupce (dokument) na levý (naše osa).
@@ -610,6 +610,34 @@
     pripnute.forEach(function (n) {
       polozka.appendChild(vytvorPripnutouNavstevu(n));
     });
+
+    // Co u toho milníku natočíme — bere se ze shot listu navázané návštěvy,
+    // aby to bylo na jednom místě s plánem stavby (Franta 31. 8.). Není to
+    // druhá kopie dat, jen pohled na to samé; edituje se v Návštěvách.
+    var zabery = [];
+    pripnute.forEach(function (n) {
+      (n.co_se_toci || []).forEach(function (polozkaShotu) {
+        if (polozkaShotu && polozkaShotu.text) zabery.push(polozkaShotu);
+      });
+    });
+    if (zabery.length) {
+      var blok = document.createElement("div");
+      blok.className = "plan-zabery";
+      var nadpis = document.createElement("div");
+      nadpis.className = "plan-zabery-nadpis";
+      nadpis.textContent = "Co natočíme";
+      blok.appendChild(nadpis);
+      var seznam = document.createElement("ul");
+      seznam.className = "plan-zabery-seznam";
+      zabery.forEach(function (z) {
+        var li = document.createElement("li");
+        if (z.hotovo) li.className = "plan-zaber-hotovy";
+        li.textContent = z.text;
+        seznam.appendChild(li);
+      });
+      blok.appendChild(seznam);
+      polozka.appendChild(blok);
+    }
 
     if (Auth.can("plan.upravit")) {
       var akce = document.createElement("div");

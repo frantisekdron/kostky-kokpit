@@ -2607,12 +2607,14 @@ details.komentare[open] summary::before {
 /* Body na přehledové mapě zůstávají vizuálně malé (jinak by mapu zakryly),
    ale dostávají neviditelnou dotykovou plochu okolo — na telefonu se do
    11px tečky prstem netrefíš. */
-.mapa-marker {
-  position: relative;
-}
-
-.mapa-marker::after {
+/* POZOR: .mapa-marker je uz vys v souboru `position: absolute` a jeho ::after
+   je SPICKA markeru. Nesmi se to tady prebit — stalo se to 30. 8. a markery
+   se pak pozicovaly v toku: kazdy dalsi se posunul o svou sirku a body na
+   prehledove mape se „rozutekly". Dotykovou plochu proto pridavame jen malym
+   teckam snimku, ktere zadnou spicku nemaji. */
+.mapa-marker-snimek::after {
   content: "";
+  display: block;
   position: absolute;
   inset: -17px;
   border-radius: 50%;
@@ -3432,4 +3434,45 @@ details > summary {
 
 @media (prefers-reduced-transparency: reduce) {
   .navsteva-karta.navsteva-skupina-probehlo { opacity: 1; }
+}
+
+/* „Co natočíme" u milníku — shot list navázané návštěvy. Vizuálně náš text,
+   proto zelená linka (modrá v appce znamená citaci od PORR). */
+.plan-zabery {
+  margin: 10px 0 4px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--akcent);
+  background: var(--panel-2);
+  border-radius: 2px;
+}
+
+.plan-zabery-nadpis {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--akcent);
+  margin-bottom: 4px;
+}
+
+.plan-zabery-seznam {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.plan-zaber-hotovy {
+  color: var(--text-slaby);
+  text-decoration: line-through;
+}
+
+/* Dokument od PORR je zavřený a drobnější — je to podklad k nahlédnutí,
+   ne hlavní obsah sekce. */
+.harmonogram-panel > summary {
+  font-size: 0.9rem;
+}
+
+.harmonogram-telo {
+  font-size: 0.86rem;
 }
