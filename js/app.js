@@ -528,7 +528,14 @@
     if (!window.GH || typeof GH.nactiVse !== "function") {
       return Promise.reject(new Error("Datová vrstva (GH) není načtená."));
     }
-    return GH.nactiVse().then(function (vysledky) {
+    return GH.nactiVse().catch(function (chyba) {
+      // Pozor: App.chybejici se driv plnilo jen na uspesne vetvi. Kdyz
+      // nactiVse odmitlo (cokoli jineho nez 404), .then se nespustil,
+      // App.chybejici zustalo undefined a vystraha o nenactenych datech
+      // MLCELA prave u poruch, ktere se samy nespravi. Overeno reprodukci.
+      App.chybejici = ["všechna data"];
+      throw chyba;
+    }).then(function (vysledky) {
       // gh.js si chybejici soubory odklada do __chybejici. Driv to nikdo
       // necetl, takze se sekce s nenactenymi daty tvarila jako PRAZDNA —
       // vypadalo to, ze zaznamy zmizely, i kdyz v repu poradne byly.
@@ -551,6 +558,18 @@
   // Callback pro GH.spustPolling: gh.js ho vola jako cb(soubor, data) pro
   // KAZDY zmeneny soubor zvlast (data = cela cerstva obalka toho souboru,
   // ulozi se do App.data[soubor] rovnou beze zmeny).
+  // gh.js hlasi, u kterych souboru posledni polling selhal. Bez toho se
+  // appka tvarila synchronizovane i nad daty starymi klidne hodinu.
+  function naChybuPollingu(chybejici) {
+    App.chybejici = (chybejici && chybejici.length) ? chybejici.slice() : [];
+    if (App.chybejici.length) {
+      nastavSync("chyba", "Data nejsou aktuální");
+    } else {
+      nastavSync("ok");
+    }
+    App.prekresli();
+  }
+
   function naZmenuSouboru(soubor, obal) {
     if (!obal) return;
     App.uloz(soubor, obal); // cela obalka beze zmeny tvaru
@@ -562,7 +581,11 @@
     if (soubor === "nastaveni") {
       aktualizujNazevProjektu();
     }
-    nastavSync("ok");
+    if ((App.chybejici || []).length) {
+      nastavSync("chyba", "Data nejsou aktuální");
+    } else {
+      nastavSync("ok");
+    }
     App.prekresli();
   }
 
@@ -575,10 +598,24 @@
   var aktualniSekce = null;
   var routerZapnuty = false;
 
+  // Hash umí i „#pripominky/pri-001“ — odkaz z upozorňovacího mailu tak vede
+  // rovnou na konkrétní záznam, ne jen na sekci (kde ho výchozí filtr schová).
+  function rozlozHash() {
+    var cely = (window.location.hash || "").replace("#", "");
+    var lomitko = cely.indexOf("/");
+    if (lomitko === -1) return { sekce: cely, parametr: "" };
+    return { sekce: cely.slice(0, lomitko), parametr: cely.slice(lomitko + 1) };
+  }
+
   function ziskejSekciZHashe() {
-    var klic = (window.location.hash || "").replace("#", "");
+    var klic = rozlozHash().sekce;
     return PLATNE_SEKCE.indexOf(klic) !== -1 ? klic : "prehled";
   }
+
+  // Co je v hashi za lomítkem (id záznamu). Sekce si to přečte při vykreslení.
+  App.parametrHashe = function () {
+    return decodeURIComponent(rozlozHash().parametr || "");
+  };
 
   function maPravoNaSekci(klic) {
     if (klic !== "sprava") return true; // jedina sekce skryvana podle prava (§9.7)
@@ -632,18 +669,20 @@
     var chybejici = App.chybejici || [];
     if (!chybejici.length) return null;
     var soubor = SOUBOR_SEKCE[klic];
-    var tyka = klic === "prehled" || klic === "kos"
+    // "všechna data" = nactiVse odmitlo, nevime u ktereho souboru -> hlasime vsude
+    var vsude = chybejici.indexOf("všechna data") !== -1;
+    var tyka = (vsude || klic === "prehled" || klic === "kos")
       ? chybejici.slice()
       : (chybejici.indexOf(soubor) !== -1 ? [soubor] : []);
     if (!tyka.length) return null;
 
     var karta = App.el("div", "karta-upozorneni");
     var text = App.el("div");
-    text.appendChild(App.el("strong", null, "Data se teď nenačetla."));
+    text.appendChild(App.el("strong", null, "Nevidíte aktuální data."));
     text.appendChild(App.el("p", "karta-meta",
-      "Nepodařilo se stáhnout: " + tyka.join(", ") + ". Co je níž, proto nemusí " +
-      "být úplné. Nic se neztratilo — záznamy jsou uložené, jen je teď nevidíme. " +
-      "Nezapisujte sem, dokud se načtení nepovede."));
+      "Nepodařilo se stáhnout: " + tyka.join(", ") + ". Co je níž, může být " +
+      "zastaralé nebo neúplné. Nic se neztratilo — záznamy jsou uložené na " +
+      "serveru, jen je teď nevidíme. Než se načtení povede, sem raději nezapisujte."));
     var tlacitko = App.el("button", "tlacitko tlacitko-vedlejsi", "Načíst znovu");
     tlacitko.type = "button";
     tlacitko.addEventListener("click", function () {
@@ -780,7 +819,7 @@
         zapniRouter();
         smerujNaSekci();
         if (window.GH && typeof GH.spustPolling === "function") {
-          GH.spustPolling(naZmenuSouboru);
+          GH.spustPolling(naZmenuSouboru, naChybuPollingu);
         }
       });
   };

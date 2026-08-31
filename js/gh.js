@@ -555,6 +555,42 @@ var GH = (function () {
 
   // ---- polling kazdych 25 s pres If-None-Match; 304 = beze zmeny ----
 
+  // Soubory, u kterych posledni polling selhal. Bez teto evidence koncilo
+  // selhani jen v konzoli: data zustala zastarala, indikator svitil zelene
+  // a uzivatel nemel jak poznat, ze uz nevidi aktualni stav.
+  var pollingChyby = {};
+  var naChybuPollingu = null;
+
+  // Jeden tik se ptá na 11 souborů. Kdyby se hlásilo hned u každého, appka
+  // by se při výpadku překreslila jedenáctkrát za sebou — hlásíme proto
+  // až souhrnně na konci tiku.
+  var hlaseniNaplanovano = false;
+
+  function ohlasZmenuStavu() {
+    if (hlaseniNaplanovano || typeof naChybuPollingu !== "function") return;
+    hlaseniNaplanovano = true;
+    Promise.resolve().then(function () {
+      hlaseniNaplanovano = false;
+      if (typeof naChybuPollingu === "function") naChybuPollingu(chybejiciSoubory());
+    });
+  }
+
+  function oznacChybuPollingu(soubor, duvod) {
+    var bylo = !!pollingChyby[soubor];
+    pollingChyby[soubor] = duvod || true;
+    if (!bylo) ohlasZmenuStavu();
+  }
+
+  function zrusChybuPollingu(soubor) {
+    if (!pollingChyby[soubor]) return;
+    delete pollingChyby[soubor];
+    ohlasZmenuStavu();
+  }
+
+  function chybejiciSoubory() {
+    return Object.keys(pollingChyby);
+  }
+
   function provedPollingTik(cb) {
     if (zapisProbiha) {
       return; // jednoduchy zamek - behem rozdelaneho zapisu tento tik preskocime
@@ -568,26 +604,31 @@ var GH = (function () {
       ghFetch("GET", cesta, null, hlavicky)
         .then(function (odpoved) {
           if (odpoved.status === 304) {
-            return; // beze zmeny - callback se nevola
+            zrusChybuPollingu(soubor); // dotaz prosel, data jsou jen beze zmeny
+            return; // callback se nevola
           }
           if (!odpoved.ok) {
             console.warn("Polling: chyba při načítání '" + soubor + "' (" + odpoved.status + ")");
+            oznacChybuPollingu(soubor, odpoved.status);
             return;
           }
           return odpoved.json().then(function (telo) {
             var data = JSON.parse(base64NaText(telo.content));
             etagy[soubor] = odpoved.headers.get("ETag") || etagy[soubor];
+            zrusChybuPollingu(soubor);
             cb(soubor, data);
           });
         })
         .catch(function (chyba) {
           console.warn("Polling: síťová chyba u '" + soubor + "'", chyba);
+          oznacChybuPollingu(soubor, "síť");
         });
     });
   }
 
-  function spustPolling(cb) {
+  function spustPolling(cb, cbChyba) {
     zastavPolling();
+    naChybuPollingu = typeof cbChyba === "function" ? cbChyba : null;
     // demo (dodatek §E): nikdo jiny data nemeni a hlavne se nesmi na sit —
     // polling se proto vubec nespousti.
     if (jeDemo()) {
@@ -777,6 +818,7 @@ var GH = (function () {
     nactiVse: nactiVse,
     zmen: zmen,
     spustPolling: spustPolling,
+    chybejiciSoubory: chybejiciSoubory,
     zastavPolling: zastavPolling,
     noveId: noveId,
     nactiSoubor: nactiSoubor,

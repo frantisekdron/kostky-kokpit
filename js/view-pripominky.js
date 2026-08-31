@@ -5,7 +5,17 @@
  *
  * Data: data/pripominky.json, obálka { verze, zmeneno, zmenil, polozky }.
  * Položka: { id, cislo, druh, nazev, popis, kde, stav, zavaznost, kdo, kdy,
- *            vyresil, vyreseno_kdy, odpoved, zminky, smazano }
+ *            vyresil, vyreseno_kdy, odpoved, odpovedi, zminky, smazano }
+ *
+ * Pozor na dvě podobně znějící pole, která znamenají něco jiného:
+ *   `odpoved`  — JEDEN text, který napíše superadmin, když připomínku vyřídí
+ *                nebo zamítne. Na kartě se ukazuje jako „Vyřízení".
+ *   `odpovedi` — VLÁKNO. Pole záznamů
+ *                { id, text, kdo, kdy, zminky, smazano }, nejstarší nahoře.
+ *                Odpovídat smí každý, kdo smí připomínku napsat. Odpověď
+ *                nejde upravit (historii nepřepisujeme), jen měkce smazat —
+ *                a to jen jejím autorem nebo superadminem.
+ *                Starší záznamy pole vůbec nemají, chybějící = prázdné.
  *
  * `zminky` je pole os-id lidí, kterým má o připomínce přijít upozornění na
  * mail (rozesílá ho GitHub Action nad datovým repem — appka mail odeslat
@@ -51,6 +61,13 @@
   ];
 
   var aktivniFiltr = "otevrene";
+  var naposledyZHashe = "";   // ať se proklik z mailu neaplikuje při každém překreslení
+  var zvyraznit = null;       // id připomínky, ke které se má odrolovat
+
+  // Které vlákno odpovědí má člověk rozbalené. App.prekresli() překresluje
+  // sekci celou, takže by se vlákno po každém zápisu zase sbalilo — tohle si
+  // to pamatuje mezi vykresleními. Klíč = id připomínky, hodnota = true/false.
+  var otevrenaVlakna = {};
 
   // ---- pomocné ----
 
@@ -75,9 +92,39 @@
     return (Auth.ja && Auth.ja.osoba_id) || null;
   }
 
-  function dalsiCislo() {
+  // Živé (nesmazané) odpovědi jedné připomínky, nejstarší nahoře. Starší
+  // záznamy pole `odpovedi` vůbec nemají — chybějící i rozbité se bere jako
+  // prázdné, nikdy jako chyba (stejně jako Util.zminky u zmínek).
+  function odpovediZaznamu(p) {
+    if (!p || !Array.isArray(p.odpovedi)) return [];
+    return p.odpovedi
+      .filter(function (o) { return o && o.id && !o.smazano; })
+      .slice()
+      .sort(function (a, b) {
+        return String(a.kdy || "").localeCompare(String(b.kdy || ""));
+      });
+  }
+
+  // gh.js by holou Error obalil do „Neočekávaná chyba: …“. S nastavenou
+  // vlastností `hlaska` projde text beze změny až do toastu.
+  function pocetPripominek(kolik) {
+    if (kolik === 1) return "1 připomínku";
+    if (kolik >= 2 && kolik <= 4) return kolik + " připomínky";
+    return kolik + " připomínek";
+  }
+
+  function chybaProUzivatele(text) {
+    var chyba = new Error(text);
+    chyba.hlaska = text;
+    return chyba;
+  }
+
+  // POZOR: počítá se z pole, které přišlo z čerstvého GETu uvnitř mutátoru,
+  // ne z App.polozky() (to je lokální kopie a při souběhu dala dvě připomínky
+  // se stejným číslem — a mail i aktivita se pak odkazovaly na dvě různé věci).
+  function dalsiCislo(pol) {
     var max = 0;
-    App.polozky("pripominky").forEach(function (p) {
+    (pol || App.polozky("pripominky")).forEach(function (p) {
       if (typeof p.cislo === "number" && p.cislo > max) max = p.cislo;
     });
     return max + 1;
@@ -109,6 +156,34 @@
       radky.push("");
       radky.push(radekZminek);
     }
+    radky.push("");
+    var ja = Auth.ja && Auth.ja.jmeno ? Auth.ja.jmeno : "";
+    if (ja) radky.push("Píše: " + ja);
+    return radky.join("\n");
+  }
+
+  // Odpověď připravená do schránky a do mailu — pro čtenáře, kterému by
+  // zápis stejně neprošel (read-only token).
+  function textOdpovedi(p, data) {
+    var radky = [];
+    radky.push("Kokpit Pragerovy kostky — odpověď na připomínku č. " + p.cislo);
+    radky.push("");
+    radky.push("Připomínka: " + (p.nazev || "(bez názvu)"));
+    radky.push("");
+    radky.push(data.text);
+
+    // Autor připomínky patří mezi upozorněné i tady, ať e-mail říká totéž,
+    // co by uložil zápis. Sám sebe si člověk neoznačuje.
+    var komu = (data.zminky || []).slice();
+    if (p.kdo && p.kdo !== mojeOsobaId() && komu.indexOf(p.kdo) === -1) {
+      komu.push(p.kdo);
+    }
+    var radekZminek = Util.zminkyText(komu);
+    if (radekZminek) {
+      radky.push("");
+      radky.push(radekZminek);
+    }
+
     radky.push("");
     var ja = Auth.ja && Auth.ja.jmeno ? Auth.ja.jmeno : "";
     if (ja) radky.push("Píše: " + ja);
@@ -269,6 +344,139 @@
     return modal;
   }
 
+  // ---- formulář odpovědi ----
+
+  function otevriOdpoved(p) {
+    var ja = mojeOsobaId();
+    // Upozornění dostanou automaticky autor připomínky a všichni, kdo už ve
+    // vláknu odpovídali — do výběru se proto nedávají a řekne se to větou.
+    var automaticky = [];
+    function pridejAutomaticky(osobaId) {
+      if (osobaId && osobaId !== ja && automaticky.indexOf(osobaId) === -1) {
+        automaticky.push(osobaId);
+      }
+    }
+    pridejAutomaticky(p.kdo);
+    (p.odpovedi || []).forEach(function (o) {
+      if (o && !o.smazano) pridejAutomaticky(o.kdo);
+    });
+
+    var form = document.createElement("form");
+    form.className = "formular";
+    form.addEventListener("submit", function (e) { e.preventDefault(); });
+
+    // Na co se vlastně odpovídá — v modálu už karta vidět není.
+    form.appendChild(App.el("p", "odpoved-citace", p.nazev || "(bez názvu)"));
+
+    var obalPole = App.el("div", "pole");
+    var idPole = "odp-" + Math.random().toString(36).slice(2, 8);
+    var popisek = App.el("label", null, "Odpověď");
+    popisek.setAttribute("for", idPole);
+    var vstupText = document.createElement("textarea");
+    vstupText.id = idPole;
+    vstupText.className = "vstup";
+    vstupText.rows = 4;
+    vstupText.placeholder = "Jak to je, nebo co se s tím bude dít.";
+    obalPole.appendChild(popisek);
+    obalPole.appendChild(vstupText);
+    form.appendChild(obalPole);
+
+    // Autor připomínky dostane upozornění vždycky — ať se dozví, že mu někdo
+    // odpověděl. Není proto ve výběru: zaškrtávátko, které nejde odškrtnout,
+    // je horší než věta, která to rovnou řekne.
+    if (automaticky.length) {
+      // Bez téhle poznámky appka slibovala upozornění i lidem, kteří nemají
+      // v týmu vyplněnou adresu — a mail jim nikdy nedorazil.
+      var jmena = automaticky.map(function (osobaId) {
+        var osoba = App.osoba(osobaId);
+        var jmeno = App.jmenoOsoby(osobaId);
+        var maMail = !!(osoba && typeof osoba.email === "string" && osoba.email.trim());
+        return maMail ? jmeno : jmeno + " (nemá e-mail, upozornění nedorazí)";
+      });
+      form.appendChild(App.el("p", "napoveda",
+        (automaticky.length === 1
+          ? "Upozornění dostane automaticky: "
+          : "Upozornění dostanou automaticky všichni z vlákna: ") + jmena.join(", ") + "."));
+    }
+
+    // Kdo píše, ten upozornění nedostává (`ja`); automaticky upozornění jsou
+    // ošetření výš. Zbytek týmu jde označit ručně.
+    var vyberZminek = Util.vyberZminek({
+      lide: App.polozky("lide").filter(function (o) {
+        return o && o.id && !o.smazano && o.id !== ja && automaticky.indexOf(o.id) === -1;
+      }),
+      veta: "Komu dalšímu má o odpovědi přijít upozornění na mail?"
+    });
+    form.appendChild(vyberZminek.prvek);
+
+    function sesbirej() {
+      return {
+        text: vstupText.value.trim(),
+        zminky: vyberZminek.vybrane()
+      };
+    }
+
+    function zkontroluj(data) {
+      if (data.text.length < 2) {
+        App.toast("Napište aspoň krátce, co odpovídáte.", "chyba");
+        return false;
+      }
+      return true;
+    }
+
+    var akce = [{ text: "Zavřít", druh: "sekundarni", fn: function () { modal.zavri(); } }];
+
+    if (smiPsat()) {
+      // Zápis na GitHub chvíli trvá. Bez téhle pojistky založil netrpělivý
+      // dvojklik dvě stejné odpovědi — a odpověď se nedá editovat, takže
+      // jedinou nápravou by bylo mazání (mail o obou už přitom odešel).
+      var probihaZapis = false;
+      akce.push({
+        text: "Odeslat odpověď",
+        druh: "primarni",
+        fn: function () {
+          if (probihaZapis) return;
+          var data = sesbirej();
+          if (!zkontroluj(data)) return;
+          probihaZapis = true;
+          ulozOdpoved(p, data).then(function (ok) {
+            probihaZapis = false;
+            if (ok) modal.zavri();
+          });
+        }
+      });
+    } else {
+      // Čtenář — read-only token, zápis by neprošel. Stejný vzorec jako
+      // u formuláře připomínky: text do schránky a rozepsaný mail.
+      akce.push({
+        text: "Zkopírovat a poslat mailem",
+        druh: "primarni",
+        fn: function () {
+          var data = sesbirej();
+          if (!zkontroluj(data)) return;
+          var text = textOdpovedi(p, data);
+          Util.doSchranky(text).then(function (ok) {
+            App.toast(ok ? "Text zkopírován." : "Text se nepodařilo zkopírovat.", ok ? "ok" : "chyba");
+          });
+          var predmet = "Kokpit Pragerovy kostky — odpověď na připomínku č. " + p.cislo;
+          window.location.href = "mailto:honza@frantisekdron.cz?subject=" +
+            encodeURIComponent(predmet) + "&body=" + encodeURIComponent(text);
+        }
+      });
+      form.appendChild(App.el("p", "napoveda",
+        "Máte přístup jen ke čtení, takže zápis přímo do kokpitu vám neprojde. " +
+        "Tlačítko níž vám odpověď připraví do schránky a otevře rozepsaný " +
+        "e-mail — stačí odeslat."));
+    }
+
+    var modal = App.modal({
+      nadpis: "Odpověď na připomínku č. " + p.cislo,
+      obsah: form,
+      akce: akce
+    });
+    return modal;
+  }
+
   // ---- zápisy ----
 
   function uloz(jeNova, existujici, data) {
@@ -277,7 +485,7 @@
       if (jeNova) {
         pol.push({
           id: GH.noveId("pri"),
-          cislo: dalsiCislo(),
+          cislo: dalsiCislo(pol),
           druh: data.druh,
           nazev: data.nazev,
           popis: data.popis,
@@ -289,13 +497,17 @@
           vyresil: null,
           vyreseno_kdy: null,
           odpoved: "",
+          odpovedi: [],
           zminky: data.zminky || [],
           smazano: null
         });
         popisZmeny = "Nová připomínka: " + data.nazev;
       } else {
         var cil = pol.find(function (p) { return p.id === existujici.id; });
-        if (!cil) return;
+        if (!cil) {
+          throw chybaProUzivatele("Připomínka mezitím zmizela — změna se neuložila. "
+            + "Načtěte stránku znovu.");
+        }
         cil.druh = data.druh;
         cil.nazev = data.nazev;
         cil.popis = data.popis;
@@ -320,7 +532,10 @@
   function zmenStav(polozka, novyStav, odpoved) {
     return GH.zmen("pripominky", function (pol) {
       var cil = pol.find(function (p) { return p.id === polozka.id; });
-      if (!cil) return;
+      if (!cil) {
+        throw chybaProUzivatele("Připomínka mezitím zmizela — stav se nezměnil. "
+          + "Načtěte stránku znovu.");
+      }
       cil.stav = novyStav;
       if (typeof odpoved === "string") cil.odpoved = odpoved;
       if (novyStav === "hotovo" || novyStav === "zamitnuto") {
@@ -351,6 +566,91 @@
       });
   }
 
+  function ulozOdpoved(p, data) {
+    var ja = mojeOsobaId();
+    return GH.zmen("pripominky", function (pol) {
+      // Mutuje se výhradně podle id, nikdy podle indexu (§3 kontraktu) —
+      // mezitím mohl kdokoli jiný do souboru zapsat.
+      var cil = pol.find(function (x) { return x.id === p.id; });
+      if (!cil) {
+        throw chybaProUzivatele("Připomínka mezitím zmizela — odpověď se neuložila. "
+          + "Zkopírujte si text a načtěte stránku znovu.");
+      }
+      if (cil.smazano) {
+        throw chybaProUzivatele("Připomínka je v koši — odpovědět na ni nejde. "
+          + "Nejdřív ji někdo musí vrátit.");
+      }
+      if (!Array.isArray(cil.odpovedi)) cil.odpovedi = [];
+
+      // Upozornění dostane autor připomínky I všichni, kdo už v jejím vláknu
+      // odpovídali — jinak by konverzace umřela hned u druhé odpovědi:
+      // ten, komu odpovídám, by se to nedozvěděl. Sám sebe si nikdo
+      // neoznačuje, proto se `ja` z výsledku vždycky vyhazuje.
+      var zminky = (data.zminky || []).slice();
+      var ucastnici = [cil.kdo];
+      cil.odpovedi.forEach(function (o) {
+        if (o && !o.smazano && o.kdo) ucastnici.push(o.kdo);
+      });
+      ucastnici.forEach(function (osobaId) {
+        if (osobaId && osobaId !== ja && zminky.indexOf(osobaId) === -1) {
+          zminky.push(osobaId);
+        }
+      });
+      zminky = zminky.filter(function (osobaId) {
+        return osobaId && osobaId !== ja;
+      });
+
+      cil.odpovedi.push({
+        id: GH.noveId("odp"),
+        text: data.text,
+        kdo: ja,
+        kdy: new Date().toISOString(),
+        zminky: zminky,
+        smazano: null
+      });
+    }, "Odpověď u připomínky č. " + p.cislo)
+      .then(function (obsah) {
+        App.uloz("pripominky", obsah);
+        otevrenaVlakna[p.id] = true; // ať je hned vidět, co jsem napsal
+        App.toast("Odpověď odeslána.", "ok");
+        App.prekresli();
+        return true;
+      })
+      .catch(function (chyba) {
+        App.toast(chyba && chyba.message ? chyba.message : "Uložení se nepovedlo.", "chyba");
+        return false;
+      });
+  }
+
+  // Odpověď se needituje (historii nepřepisujeme) a nemizí nadobro — jen se
+  // označí jako smazaná a přestane se zobrazovat.
+  function smazOdpoved(p, odpoved) {
+    App.potvrd("Smazat tuhle odpověď? Z vlákna zmizí, ale v datech zůstane.")
+      .then(function (ano) {
+        if (!ano) return;
+        GH.zmen("pripominky", function (pol) {
+          var cil = pol.find(function (x) { return x.id === p.id; });
+          if (!cil || !Array.isArray(cil.odpovedi)) {
+            throw chybaProUzivatele("Připomínka mezitím zmizela — nic se nezměnilo.");
+          }
+          var terc = cil.odpovedi.find(function (o) { return o && o.id === odpoved.id; });
+          if (!terc) {
+            throw chybaProUzivatele("Odpověď se nenašla — nejspíš ji mezitím smazal někdo jiný.");
+          }
+          terc.smazano = { kdy: new Date().toISOString(), kdo: mojeOsobaId() };
+        }, "Smazána odpověď u připomínky č. " + p.cislo)
+          .then(function (obsah) {
+            App.uloz("pripominky", obsah);
+            otevrenaVlakna[p.id] = true;
+            App.toast("Odpověď smazána.", "ok");
+            App.prekresli();
+          })
+          .catch(function (chyba) {
+            App.toast(chyba && chyba.message ? chyba.message : "Uložení se nepovedlo.", "chyba");
+          });
+      });
+  }
+
   function smaz(polozka) {
     App.potvrd("Přesunout připomínku č. " + polozka.cislo + " do koše?").then(function (ano) {
       if (!ano) return;
@@ -370,6 +670,69 @@
   }
 
   // ---- vykreslení ----
+
+  // Jedna odpověď ve vlákně: kdo, kdy, text a řádek s označenými lidmi.
+  function bublinaOdpovedi(p, o, ja) {
+    var blok = App.el("div", "odpoved-polozka");
+
+    var hlavicka = App.el("div", "odpoved-hlavicka");
+    hlavicka.appendChild(App.el("span", "odpoved-kdo", App.jmenoOsoby(o.kdo)));
+    hlavicka.appendChild(App.el("span", "odpoved-kdy", Util.formatCas(o.kdy)));
+
+    // Smazat smí autor odpovědi (musí ale pořád mít právo psát) a superadmin
+    // kteroukoli.
+    var muzeSmazat = (smiPsat() && o.kdo && o.kdo === ja) || smiResit();
+    if (muzeSmazat) {
+      var btnSmazat = App.el("button", "btn-ikonovy btn-nebezpecny odpoved-smazat", "×");
+      btnSmazat.type = "button";
+      btnSmazat.title = "Smazat odpověď";
+      btnSmazat.setAttribute("aria-label",
+        "Smazat odpověď od " + App.jmenoOsoby(o.kdo) + " ze " + Util.formatCas(o.kdy));
+      btnSmazat.addEventListener("click", function () { smazOdpoved(p, o); });
+      hlavicka.appendChild(btnSmazat);
+    }
+    blok.appendChild(hlavicka);
+
+    blok.appendChild(App.el("p", "odpoved-text", o.text || ""));
+
+    var radekZminek = Util.radekZminek(Util.zminky(o));
+    if (radekZminek) blok.appendChild(radekZminek);
+
+    return blok;
+  }
+
+  // Vlákno odpovědí pod připomínkou. Vrací null, když ještě žádná není —
+  // prázdný blok „Odpovědi 0" by kartu jen zaplevelil.
+  function vlaknoOdpovedi(p) {
+    var seznam = odpovediZaznamu(p);
+    if (!seznam.length) return null;
+
+    var ja = mojeOsobaId();
+
+    var obal = document.createElement("details");
+    obal.className = "odpovedi";
+
+    // Počet je v souhrnu, takže je vidět i když je vlákno sbalené.
+    var shrnuti = document.createElement("summary");
+    shrnuti.className = "odpovedi-summary";
+    shrnuti.appendChild(App.el("span", "odpovedi-veta", "Odpovědi"));
+    shrnuti.appendChild(App.el("span", "odpovedi-pocet", String(seznam.length)));
+    obal.appendChild(shrnuti);
+
+    var telo = App.el("div", "odpovedi-telo");
+    seznam.forEach(function (o) { telo.appendChild(bublinaOdpovedi(p, o, ja)); });
+    obal.appendChild(telo);
+
+    // Krátké vlákno rozbalené (není co schovávat), delší sbalené, ať karta
+    // nepřeroste. Co si člověk sám rozbalí nebo sbalí, to má přednost.
+    var zapamatovane = otevrenaVlakna[p.id];
+    obal.open = zapamatovane === undefined ? seznam.length <= 3 : !!zapamatovane;
+    obal.addEventListener("toggle", function () {
+      otevrenaVlakna[p.id] = obal.open;
+    });
+
+    return obal;
+  }
 
   function kartaPripominky(p) {
     var stav = popisStavu(p.stav);
@@ -405,8 +768,10 @@
       "Napsal(a) " + kdo + " · " + Util.formatCas(p.kdy)));
 
     if (p.odpoved) {
+      // Jednorázová poznámka superadmina při vyřízení — něco jiného než
+      // vlákno odpovědí níž, proto i jiný název.
       var odp = App.el("div", "karta-odpoved");
-      odp.appendChild(App.el("strong", null, "Odpověď: "));
+      odp.appendChild(App.el("strong", null, "Vyřízení: "));
       odp.appendChild(document.createTextNode(p.odpoved));
       karta.appendChild(odp);
     }
@@ -417,6 +782,9 @@
 
     var radekZminek = Util.radekZminek(Util.zminky(p));
     if (radekZminek) karta.appendChild(radekZminek);
+
+    var vlakno = vlaknoOdpovedi(p);
+    if (vlakno) karta.appendChild(vlakno);
 
     var akce = App.el("div", "karta-akce");
 
@@ -442,7 +810,7 @@
             ? "Co jsme s tím udělali."
             : "Proč to neřešíme.";
           var obal = App.el("div", "formular");
-          var lab = App.el("label", null, "Odpověď (nepovinná)");
+          var lab = App.el("label", null, "Vyřízení (nepovinné)");
           obal.appendChild(lab);
           obal.appendChild(pole);
           var m = App.modal({
@@ -464,6 +832,14 @@
       akce.appendChild(vyberStavu);
     }
 
+    // Odpovídat smí každý, kdo smí připomínku napsat. Čtenáři tlačítko
+    // zůstává — otevře mu formulář, který text připraví do schránky a mailu.
+    var btnOdpovedet = App.el("button", "btn btn-mala btn-sekundarni",
+      smiPsat() ? "Odpovědět" : "Odpovědět (pošle se mailem)");
+    btnOdpovedet.type = "button";
+    btnOdpovedet.addEventListener("click", function () { otevriOdpoved(p); });
+    akce.appendChild(btnOdpovedet);
+
     var muzeUpravit = smiPsat() && (smiResit() || p.kdo === mojeOsobaId());
     if (muzeUpravit) {
       var btnUpravit = App.el("button", "btn btn-mala btn-sekundarni", "Upravit");
@@ -480,6 +856,20 @@
     kontejner.innerHTML = "";
 
     var vsechny = polozky();
+
+    // Proklik z upozorňovacího mailu: #pripominky/<id>. Bez tohohle by
+    // adresát u vyřízené připomínky přistál na prázdném seznamu, protože
+    // výchozí filtr „Otevřené“ pouští jen nova/resi-se.
+    var zHashe = (typeof App.parametrHashe === "function") ? App.parametrHashe() : "";
+    if (zHashe && zHashe !== naposledyZHashe) {
+      naposledyZHashe = zHashe;
+      var hledana = vsechny.filter(function (p) { return p.id === zHashe; })[0];
+      if (hledana) {
+        aktivniFiltr = "vse";
+        otevrenaVlakna[hledana.id] = true;
+        zvyraznit = hledana.id;
+      }
+    }
 
     var hlavicka = App.el("div", "sekce-hlavicka");
     hlavicka.appendChild(App.el("h2", "nadpis-sekce", "Připomínky"));
@@ -528,6 +918,27 @@
 
     var vyfiltrovane = filtruj(vsechny, aktivniFiltr);
 
+    // Filtr je modulová proměnná — drží se, dokud se stránka tvrdě nenačte,
+    // a přežije i přepnutí sekcí. Franta kvůli tomu marně hledal připomínku,
+    // kterou nepsal on: zapnutý filtr „Moje“ ji schoval a nic to neřeklo.
+    // Když filtr něco skrývá, musí to být vidět — i s cestou ven.
+    var skryto = vsechny.length - vyfiltrovane.length;
+    if (skryto > 0 && aktivniFiltr !== "vse") {
+      var nazevFiltru = "";
+      FILTRY.forEach(function (f) { if (f.kod === aktivniFiltr) nazevFiltru = f.nazev; });
+      var upozorneni = App.el("div", "filtr-skryva");
+      upozorneni.appendChild(document.createTextNode(
+        "Filtr „" + nazevFiltru + "“ skrývá " + pocetPripominek(skryto) + "."));
+      var odkaz = App.el("button", "odkaz-tlacitko", "Zobrazit vše");
+      odkaz.type = "button";
+      odkaz.addEventListener("click", function () {
+        aktivniFiltr = "vse";
+        vykresli(kontejner);
+      });
+      upozorneni.appendChild(odkaz);
+      kontejner.appendChild(upozorneni);
+    }
+
     if (!vyfiltrovane.length) {
       var prazdno = App.el("div", "prazdny-stav");
       prazdno.appendChild(App.el("p", null, vsechny.length
@@ -546,8 +957,24 @@
     });
 
     var seznam = App.el("div", "karty-mrizka");
-    vyfiltrovane.forEach(function (p) { seznam.appendChild(kartaPripominky(p)); });
+    var karty = {};
+    vyfiltrovane.forEach(function (p) {
+      var karta = kartaPripominky(p);
+      karty[p.id] = karta;
+      seznam.appendChild(karta);
+    });
     kontejner.appendChild(seznam);
+
+    // Doskákat na připomínku, na kterou vedl odkaz z mailu.
+    if (zvyraznit && karty[zvyraznit]) {
+      var cil = karty[zvyraznit];
+      zvyraznit = null;
+      cil.classList.add("karta-zvyraznena");
+      window.setTimeout(function () {
+        try { cil.scrollIntoView({ behavior: "smooth", block: "center" }); }
+        catch (e) { cil.scrollIntoView(); }
+      }, 60);
+    }
   }
 
   function filtruj(vsechny, kod) {

@@ -332,6 +332,9 @@ var Util = (function () {
 
   Util.formatCas = function (iso) {
     var dt = new Date(iso);
+    // Neplatné datum shodilo formatToParts výjimkou a s ní celé vykreslení
+    // sekce — zůstala hlavička bez jediné karty. Radši pomlčka než prázdno.
+    if (isNaN(dt.getTime())) return "—";
     var fmt = new Intl.DateTimeFormat("cs-CZ", {
       timeZone: "Europe/Prague",
       day: "numeric",
@@ -772,7 +775,7 @@ var Util = (function () {
     return { prvek: obal, vybrane: vybrane };
   };
 
-  // Text řádku "Upozorněni: Jméno, Jméno" — prázdný řetězec, když nikdo
+  // Text řádku "Upozornění: Jméno, Jméno" — prázdný řetězec, když nikdo
   // označený není. Pro sekce, které skládají HTML řetězcem (view-navstevy.js);
   // ty ho musí prohnat Util.esc.
   Util.zminkyText = function (ids, nastaveni) {
@@ -786,7 +789,7 @@ var Util = (function () {
       var jmeno = osoba && osoba.jmeno ? osoba.jmeno : String(id);
       return maMail(osoba) ? jmeno : jmeno + " (" + POZNAMKA_NEDORAZILO + ")";
     });
-    return "Upozorněni: " + casti.join(", ");
+    return "Upozornění: " + casti.join(", ");
   };
 
   // Tentýž řádek jako prvek — poznámka u člověka bez mailu je ve vlastním
@@ -800,7 +803,7 @@ var Util = (function () {
 
     var radek = document.createElement("p");
     radek.className = "karta-meta zminky-radek";
-    radek.appendChild(document.createTextNode("Upozorněni: "));
+    radek.appendChild(document.createTextNode("Upozornění: "));
 
     seznam.forEach(function (id, poradi) {
       if (poradi) radek.appendChild(document.createTextNode(", "));

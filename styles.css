@@ -3621,3 +3621,173 @@ details.zminky[open] > summary::before {
 #vystraha-data .karta-upozorneni button {
   margin-top: 10px;
 }
+
+/* ------------------------------------------------------------------
+   Vlákno odpovědí pod připomínkou (sekce Připomínky).
+
+   Odpověď se needituje (historii nepřepisujeme), jen měkce maže. Vlákno
+   je <details>, aby delší diskuze nepřerostla kartu — počet odpovědí
+   proto musí být čitelný i ve sbaleném stavu a sedí přímo v souhrnu.
+
+   Vizuálně se schválně liší od .karta-odpoved: ta je JEDNORÁZOVÉ vyřízení
+   od superadmina (zelená linka), tohle je rozhovor (modrá).
+   ------------------------------------------------------------------ */
+
+details.odpovedi {
+  margin-top: 10px;
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+  background: var(--panel-2);
+}
+
+details.odpovedi > summary {
+  padding: 4px 10px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-slaby);
+  list-style: none;
+}
+
+details.odpovedi > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Vlastní šipka: souhrn je display:flex (centrální pravidlo pro dotykový
+   cíl 44 px), a tím prohlížeč nativní trojúhelníček schová. */
+details.odpovedi > summary::before {
+  content: "▸";
+  color: var(--akcent);
+}
+
+details.odpovedi[open] > summary::before {
+  content: "▾";
+}
+
+.odpovedi-veta {
+  flex: 1 1 auto;
+}
+
+.odpovedi-pocet {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--akcent);
+  color: var(--pozadi);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.odpovedi-telo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--linka);
+}
+
+.odpoved-polozka {
+  min-width: 0;
+  padding: 6px 10px 8px;
+  background: var(--panel);
+  border-left: 2px solid var(--modra-porr);
+  border-radius: 2px;
+}
+
+.odpoved-hlavicka {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+}
+
+.odpoved-kdo {
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Odsune křížek na pravý okraj i po zalomení jména na úzkém displeji. */
+.odpoved-kdy {
+  flex: 1 1 auto;
+}
+
+.odpoved-smazat {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Odřádkování v odpovědi se zachovává (pre-wrap) a dlouhé slovo nebo
+   odkaz kartu nerozšíří (anywhere) — na mobilu 390 px nic nepřetéká. */
+.odpoved-text {
+  margin-top: 2px;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Připomínka, na kterou se odpovídá — v modálu už karta vidět není. */
+.odpoved-citace {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border-left: 2px solid var(--akcent);
+  border-radius: 2px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Křížek je v KAŽDÉ odpovědi — ve výchozím stavu je proto tlumený, ať jich
+   pět pod sebou nekřičí červeně. Barvu nebezpečí ukáže při najetí a fokusu,
+   takže význam tlačítka zůstává stejný jako všude jinde v appce. */
+.odpoved-smazat.btn-nebezpecny {
+  border-color: var(--linka);
+  color: var(--text-slaby);
+}
+
+.odpoved-smazat.btn-nebezpecny:hover,
+.odpoved-smazat.btn-nebezpecny:focus-visible {
+  border-color: var(--chyba);
+  background: var(--chyba);
+  color: var(--pozadi);
+}
+
+/* Upozorneni, ze aktivni filtr neco skryva (sekce Pripominky) */
+.filtr-skryva .odkaz-tlacitko {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--akcent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.filtr-skryva .odkaz-tlacitko:hover,
+.filtr-skryva .odkaz-tlacitko:focus-visible {
+  text-decoration: none;
+}
+
+.filtr-skryva {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--varovani);
+  background: var(--panel);
+  font-size: 0.9rem;
+  color: var(--text-slaby);
+}
+
+/* Pripominka, na kterou vedl odkaz z upozornovaciho mailu */
+.karta-zvyraznena {
+  outline: 2px solid var(--akcent);
+  outline-offset: 3px;
+}

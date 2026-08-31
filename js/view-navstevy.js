@@ -866,7 +866,7 @@
     return html;
   }
 
-  // Řádek „Upozorněni: …" u komentáře. Tahle sekce skládá HTML řetězcem,
+  // Řádek „Upozornění: …" u komentáře. Tahle sekce skládá HTML řetězcem,
   // takže se text bere z Util.zminkyText a POVINNĚ prochází esc().
   function htmlRadekZminek(zaznam) {
     var text = Util.zminkyText(Util.zminky(zaznam));
