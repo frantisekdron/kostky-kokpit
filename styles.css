@@ -3791,3 +3791,270 @@ details.odpovedi[open] > summary::before {
   outline: 2px solid var(--akcent);
   outline-offset: 3px;
 }
+
+/* ------------------------------------------------------------------ */
+/* Sekce Naklady na provoz (js/view-naklady.js) — jen super admin.      */
+/* Prida se JEN na konec souboru, nic vys se nemeni.                    */
+/* ------------------------------------------------------------------ */
+
+/* Zamek / zalozeni: uzka karta uprostred, at je jasne, ze tady se nic  */
+/* neukazuje, dokud clovek nezada heslo.                                */
+.naklady-zamek {
+  max-width: 30em;
+  margin: 8px 0 0;
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--akcent);
+  border-radius: 2px;
+}
+
+.naklady-zamek-nadpis {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.naklady-zamek-text {
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  color: var(--text-slaby);
+}
+
+.naklady-varovani {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--varovani);
+  background: var(--panel-2, var(--panel));
+  font-size: 0.9rem;
+}
+
+.naklady-varovani .karta-meta {
+  margin: 6px 0 0;
+}
+
+/* Souhrn: dlazdice s cisly. auto-fit, at se to na mobilu srovna pod sebe. */
+.naklady-souhrn {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.naklady-dlazdice {
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 2px;
+}
+
+.naklady-dlazdice-popisek {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-slaby);
+}
+
+.naklady-dlazdice-cislo {
+  margin-top: 4px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.naklady-cislo-dobre { color: var(--akcent); }
+.naklady-cislo-spatne { color: var(--chyba); }
+
+.naklady-dlazdice-meta {
+  margin-top: 3px;
+  font-size: 0.8rem;
+  color: var(--text-slaby);
+}
+
+/* Tempo: utraceno z ceny vs. odslouzeno ze smlouvy */
+.naklady-tempo {
+  margin-bottom: 22px;
+}
+
+.naklady-tempo-radek {
+  display: grid;
+  grid-template-columns: minmax(120px, 12em) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.naklady-tempo-popisek { color: var(--text-slaby); }
+.naklady-tempo-hodnota { font-variant-numeric: tabular-nums; }
+
+.naklady-pruh {
+  display: block;
+  height: 8px;
+  min-width: 40px;
+  background: var(--linka);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.naklady-pruh-vypln {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+.naklady-pruh-penize { background: var(--akcent); }
+.naklady-pruh-cas { background: var(--modra-porr); }
+
+/* Rozpad po kategoriich */
+.naklady-podnadpis {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.naklady-kategorie-radek {
+  display: grid;
+  grid-template-columns: minmax(90px, 9em) 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.85rem;
+}
+
+.naklady-kategorie-castka {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.naklady-kategorie-podil {
+  min-width: 4.5em;
+  text-align: right;
+  color: var(--text-slaby);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Co stoji jeden vyjezd */
+.naklady-vyjezd {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--linka);
+  font-size: 0.85rem;
+}
+
+.naklady-vyjezd-meta { color: var(--text-slaby); font-size: 0.8rem; }
+.naklady-vyjezd-castka { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Filtry + soucet */
+.naklady-filtry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.naklady-filtr-vyber {
+  width: auto;
+  min-width: 11em;
+  max-width: 100%;
+}
+
+.naklady-soucet {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: var(--text-slaby);
+}
+
+/* Tabulka polozek. Sirsi obsah roluje uvnitr .tabulka-wrap, stranka se */
+/* vodorovne nehne ani na 390px.                                        */
+.tabulka-naklady {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tabulka-naklady th,
+.tabulka-naklady td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--linka);
+  text-align: left;
+  vertical-align: top;
+}
+
+.tabulka-naklady thead th {
+  background: var(--panel);
+  color: var(--text-slaby);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.naklady-bunka-datum { white-space: nowrap; }
+.naklady-bunka-popis { min-width: 12em; }
+.naklady-bunka-navsteva { color: var(--text-slaby); }
+
+.naklady-bunka-cislo {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.naklady-bunka-castka { font-weight: 700; }
+.naklady-bunka-akce { text-align: right; white-space: nowrap; }
+
+.naklady-poznamka {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--text-slaby);
+}
+
+/* Smazane polozky — vlastni kos teto sekce (do sdileneho Kose nepatri) */
+.naklady-smazane { margin-top: 10px; }
+
+.naklady-smazany {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--linka);
+  font-size: 0.84rem;
+  color: var(--text-slaby);
+}
+
+.naklady-smazany-castka { font-variant-numeric: tabular-nums; }
+.naklady-smazany-meta { font-size: 0.78rem; }
+
+@media (max-width: 620px) {
+  .naklady-kategorie-radek {
+    grid-template-columns: 1fr auto;
+  }
+  .naklady-kategorie-radek .naklady-pruh {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+  .naklady-tempo-radek {
+    grid-template-columns: 1fr auto;
+  }
+  .naklady-tempo-radek .naklady-pruh {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+  .naklady-smazany {
+    grid-template-columns: 1fr auto;
+  }
+  .naklady-smazany-meta { grid-column: 1 / -1; }
+}
+
+/* Varovani, ze smlouva nepokryva celou stavbu (sekce Naklady) */
+.naklady-varovani {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-left: 3px solid var(--varovani);
+  background: var(--panel-2);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}

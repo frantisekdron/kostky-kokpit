@@ -78,8 +78,10 @@
  *                                        chtel pouzit i jiny soubor
  *
  * Dale: router nad location.hash (#prehled/#navstevy/#plan/#casosber/
- * #materialy/#emauzy/#lide/#kos/#sprava — #casosber a #emauzy pridava
- * dodatek §C.2), wiring prihlasovaciho formulare na Auth.prihlas(), wiring
+ * #materialy/#emauzy/#lide/#kos/#sprava/#naklady — #casosber a #emauzy
+ * pridava dodatek §C.2; #naklady je sekce jen pro superadmina, viz
+ * PRAVO_SEKCE nize a js/view-naklady.js), wiring prihlasovaciho formulare
+ * na Auth.prihlas(), wiring
  * odhlasovaciho tlacitka na Auth.odhlas(), hlavickovy indikator
  * synchronizace a globalni odchytavani chyb (window.onerror,
  * unhandledrejection -> App.toast).
@@ -148,6 +150,12 @@
   App.data.harmonogram = App.data.harmonogram || { verze: 0, data: {} };
   // Seznam snímků z náletu (souřadnice, výšky) — taky data, ne appka.
   App.data.nalet = App.data.nalet || { verze: 0, data: { teren_m: 260, polozky: [] } };
+  // Náklady na provoz — obálka nese místo "polozky" jediný klíč "sifrovano"
+  // (obsah je zašifrovaný vlastním heslem, viz js/view-naklady.js). Soubor
+  // v repu klidně ještě neexistuje — pak je "sifrovano" null a sekce nabídne
+  // založení. App.polozky("naklady") se schválně nepoužívá: rozšifrovaná data
+  // nikdy neleží v App.data, žijí jen v paměti té sekce.
+  App.data.naklady = App.data.naklady || { verze: 0, zmeneno: null, zmenil: null, sifrovano: null };
 
   // ------------------------------------------------------------------
   // App.polozky / App.obsah / App.uloz — JEDINY spravny zpusob, jak vsechny
@@ -551,7 +559,8 @@
       }
       aktualizujNazevProjektu();
       nastavHlavicku();
-      nastavViditelnostSpravy();
+      nastavViditelnostSekci();
+      ohlasZmenuRole();
     });
   }
 
@@ -576,7 +585,8 @@
     if (soubor === "pristupy" && window.Auth && typeof Auth.nactiPrava === "function") {
       Auth.nactiPrava(App.data.pristupy);
       nastavHlavicku();
-      nastavViditelnostSpravy();
+      nastavViditelnostSekci();
+      ohlasZmenuRole();
     }
     if (soubor === "nastaveni") {
       aktualizujNazevProjektu();
@@ -594,7 +604,7 @@
   // ------------------------------------------------------------------
 
   var PLATNE_SEKCE = ["prehled", "navstevy", "plan", "casosber", "materialy", "emauzy",
-    "pripominky", "lide", "kos", "sprava"];
+    "pripominky", "lide", "kos", "sprava", "naklady"];
   var aktualniSekce = null;
   var routerZapnuty = false;
 
@@ -617,9 +627,32 @@
     return decodeURIComponent(rozlozHash().parametr || "");
   };
 
+  // Sekce skryvane podle prava (§9.7). Klic = sekce, hodnota = funkce, ktera
+  // rekne, jestli ji prihlaseny clovek smi videt. Co tu neni, vidi kazdy.
+  // Hlida se na dvou mistech naraz a obe jsou nutna:
+  //   - nastavViditelnostSekci() schova odkaz v navigaci,
+  //   - smerujNaSekci() odmitne i rucne napsany hash (#naklady) a odveze
+  //     cloveka na Prehled.
+  // POZOR: u nakladu je tohle jen slusnost, ne ochrana. Zapisovy token do
+  // privatniho repa ma cely tym vcetne PORR a Metrostavu, takze si obsah
+  // muze precist primo v repu. Skutecnou ochranou je AZ to, ze je obsah
+  // data/naklady.json zasifrovany vlastnim heslem (js/view-naklady.js).
+  var PRAVO_SEKCE = {
+    sprava: function () {
+      return !!(window.Auth && typeof Auth.can === "function" && Auth.can("prava.upravit"));
+    },
+    // Naklady a marze vidi VYHRADNE superadmin — ne "kdo smi upravovat prava",
+    // ale primo role. Admin z PORR ma prava.upravit vypnute, ale kdyby ho
+    // nekdo povysil, na naklady se tim dostat nesmi.
+    naklady: function () {
+      return !!(window.Auth && Auth.role === "superadmin");
+    }
+  };
+
   function maPravoNaSekci(klic) {
-    if (klic !== "sprava") return true; // jedina sekce skryvana podle prava (§9.7)
-    return !!(window.Auth && typeof Auth.can === "function" && Auth.can("prava.upravit"));
+    var test = PRAVO_SEKCE[klic];
+    if (typeof test !== "function") return true;
+    return test();
   }
 
   function oznacAktivniOdkaz(klic) {
@@ -640,7 +673,8 @@
   var SOUBOR_SEKCE = {
     navstevy: "navstevy", plan: "plan", casosber: "casosber",
     materialy: "materialy", emauzy: "materialy",
-    pripominky: "pripominky", lide: "lide", sprava: "pristupy"
+    pripominky: "pripominky", lide: "lide", sprava: "pristupy",
+    naklady: "naklady"
   };
 
   // Vlastni misto NAD #obsah. Do #obsah to patrit nemuze: sekce si ho pri
@@ -790,10 +824,32 @@
     }
   }
 
-  function nastavViditelnostSpravy() {
-    var odkaz = document.querySelector('#navigace .nav-odkaz[data-sekce="sprava"]');
-    if (!odkaz) return;
-    odkaz.hidden = !(window.Auth && typeof Auth.can === "function" && Auth.can("prava.upravit"));
+  // Schova v navigaci odkazy na sekce, na ktere prihlaseny clovek nema pravo
+  // (viz PRAVO_SEKCE vyse). Driv to umela jen jedna sekce ("sprava") a jmenovala
+  // se podle ni; ted projde vsechny, at se na dalsi sekci nezapomene.
+  var posluchaciRole = [];
+
+  // Sekce si sem zaregistruje, co má udělat při změně role. Volá se i tehdy,
+  // když sekce zrovna není na obrazovce — proto to nejde řešit uvnitř
+  // vykresli(). Sekce Náklady tak zahodí heslo z paměti, jakmile role klesne.
+  App.naZmenuRole = function (fn) {
+    if (typeof fn === "function") posluchaciRole.push(fn);
+  };
+
+  function ohlasZmenuRole() {
+    var role = (window.Auth && Auth.role) || null;
+    posluchaciRole.forEach(function (fn) {
+      try { fn(role); }
+      catch (chyba) { console.warn("Posluchač změny role selhal:", chyba); }
+    });
+  }
+
+  function nastavViditelnostSekci() {
+    Object.keys(PRAVO_SEKCE).forEach(function (klic) {
+      var odkaz = document.querySelector('#navigace .nav-odkaz[data-sekce="' + klic + '"]');
+      if (!odkaz) return;
+      odkaz.hidden = !maPravoNaSekci(klic);
+    });
   }
 
   // ------------------------------------------------------------------
@@ -944,7 +1000,7 @@
     if (login) login.hidden = true;
     if (layout) layout.hidden = false;
     nastavHlavicku();
-    nastavViditelnostSpravy();
+    nastavViditelnostSekci();
   }
 
   function zpracujPrihlaseni(e) {
@@ -1177,7 +1233,8 @@
     }
     oznacAktivniDemoRoli(tlacitka);
     nastavHlavicku();
-    nastavViditelnostSpravy();
+    nastavViditelnostSekci();
+    ohlasZmenuRole();
     App.toast("Zobrazuji appku jako: " + nazevRole(kod), "info");
 
     // Kdyz clovek koukal na Spravu a prepne se na roli, ktera na ni nema

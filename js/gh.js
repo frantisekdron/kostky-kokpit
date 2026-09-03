@@ -23,7 +23,15 @@
  *                                        (base64), pro budouci pouziti (dodatek §A.6).
  *
  * soubor je jeden z: "nastaveni" | "pristupy" | "lide" | "plan" | "navstevy" |
- *                     "materialy" | "aktivita" | "casosber"
+ *                     "materialy" | "aktivita" | "casosber" | "pripominky" |
+ *                     "harmonogram" | "nalet" | "naklady"
+ *
+ * "naklady" (data/naklady.json) je zvlastni ve trech vecech: obalka nese misto
+ * "polozky" jediny klic "sifrovano" = {salt, iv, ct} (obsah je zasifrovany
+ * heslem, ktere zna jen superadmin — role v appce jsou organizacni, ne
+ * kryptograficke, a zapisovy token do privatniho repa ma cely tym), mutatoru
+ * se proto predava CELA obalka (ROZSIRENA_OBALKA), a soubor v repu jeste
+ * nemusi existovat (NEPOVINNE) — pri prvnim zapisu ho appka sama zalozi.
  *
  * GH.zmen: 1) cerstvy GET+sha (nikdy z cache), 2) fn(mutovatelna) zmeni data NA MISTE
  * (pole "polozky" pro polozkove soubory, objekt "data" pro nastaveni/pristupy),
@@ -71,7 +79,11 @@ var GH = (function () {
     casosber: "data/casosber.json",
     pripominky: "data/pripominky.json",
     harmonogram: "data/harmonogram.json",
-    nalet: "data/nalet.json"
+    nalet: "data/nalet.json",
+    // Naklady na provoz — sifrovany soubor jen pro superadmina (sekce
+    // "naklady"). Obalka nese misto "polozky" klic "sifrovano" (viz
+    // ROZSIRENA_OBALKA a NEPOVINNE nize) a v repu klidne jeste neexistuje.
+    naklady: "data/naklady.json"
   };
 
   // ---- DEMO REZIM (KONTRAKT_DODATEK.md §E) ----------------------------------
@@ -225,7 +237,18 @@ var GH = (function () {
   // Soubory, jejichz obalka nese vedle "polozky" jeste dalsi datovy klic
   // (casosber.json ma podle dodatku SA.4 blok "popisy"). Mutatoru se u nich
   // predava CELA obalka, jinak by se ten blok nikdy nedal zapsat.
-  var ROZSIRENA_OBALKA = { casosber: true };
+  // "naklady" tu je ze stejneho duvodu z opacne strany: jeho obalka zadne
+  // "polozky" NEMA (nese jen sifrovany blob v klici "sifrovano"), takze by
+  // mutator dostal celou obalku i tak — ale radeji je to receno nahlas, at
+  // to nikdo pozdeji neprepise na pole.
+  var ROZSIRENA_OBALKA = { casosber: true, naklady: true };
+
+  // Soubory, jejichz chybejici verze v repu NENI porucha, ale normalni
+  // vychozi stav. Bez tohohle by 404 na data/naklady.json rozsvitil
+  // vsem cervenou hlasku "Nevidite aktualni data" (a to i lidem, kteri
+  // o sekci naklady vubec nemaji vedet) a polling by uz nikdy nezezelenal.
+  // Takovy soubor umi appka pri prvnim zapisu sama zalozit (viz zapisSPokusy).
+  var NEPOVINNE = { naklady: true };
 
   function ziskejMutovatelnaData(obsah, soubor) {
     if (soubor && ROZSIRENA_OBALKA[soubor]) {
@@ -272,6 +295,10 @@ var GH = (function () {
     if (soubor === "casosber") {
       // casosber ma navic klic "popisy" (dodatek §A.4)
       return { verze: 0, zmeneno: null, zmenil: null, polozky: [], popisy: {} };
+    }
+    if (soubor === "naklady") {
+      // naklady nemaji "polozky" — cely obsah je zasifrovany v "sifrovano"
+      return { verze: 0, zmeneno: null, zmenil: null, sifrovano: null };
     }
     return { verze: 0, zmeneno: null, zmenil: null, polozky: [] };
   }
@@ -415,6 +442,11 @@ var GH = (function () {
   function prazdnaObalka(soubor) {
     var objektove = { nastaveni: true, pristupy: true, harmonogram: true, nalet: true };
     var zaklad = { verze: 0, zmeneno: null, zmenil: null };
+    if (soubor === "naklady") {
+      // zadne "polozky" — obsah zije jen jako sifrovany blob (sekce Naklady)
+      zaklad.sifrovano = null;
+      return zaklad;
+    }
     if (objektove[soubor]) {
       zaklad.data = (soubor === "nalet") ? { teren_m: 260, polozky: [] } : {};
     } else {
@@ -437,6 +469,11 @@ var GH = (function () {
             // který ještě nikdo nenahrál) nechalo kokpit úplně prázdný
             // a chyba svedla vinu na token. Teď se jen ohlásí a pokračuje se.
             if (chyba && (chyba.stav === 404 || chyba.status === 404)) {
+              if (NEPOVINNE[soubor]) {
+                // Chybejici nepovinny soubor je normalni vychozi stav, ne porucha —
+                // nehlasi se jako "nenacteno" (jinak by o nem vedel cely tym).
+                return { soubor: soubor, vysledek: { data: prazdnaObalka(soubor), etag: null } };
+              }
               console.warn("Datový soubor " + soubor + " v repu není — pokračuji bez něj.");
               return { soubor: soubor, vysledek: { data: prazdnaObalka(soubor), etag: null }, chybel: true };
             }
@@ -458,8 +495,21 @@ var GH = (function () {
   // ---- read-modify-write s retry na 409/422 (jadro GH.zmen i zapisu aktivity) ----
 
   function zapisSPokusy(soubor, fn) {
+    // Nepovinny soubor (NEPOVINNE) v repu jeste byt nemusi. Cerstvy GET by
+    // pak skoncil 404 a uzivatel by dostal hlasku o chybejicim opravneni
+    // k tokenu — misto toho zacneme od prazdne obalky a PUT bez "sha" soubor
+    // rovnou zalozi (presne tak Contents API vytvari novy soubor).
+    function nactiNeboZaloz(soubor) {
+      return provedGet(soubor).catch(function (chyba) {
+        if (NEPOVINNE[soubor] && chyba && chyba.status === 404) {
+          return { data: prazdnaObalka(soubor), etag: null, sha: null };
+        }
+        throw chyba;
+      });
+    }
+
     function jedenPokus(pokus) {
-      return provedGet(soubor).then(function (aktualni) {
+      return nactiNeboZaloz(soubor).then(function (aktualni) {
         var obsah = aktualni.data;
         var mutovatelna = ziskejMutovatelnaData(obsah, soubor);
         fn(mutovatelna);
@@ -470,9 +520,13 @@ var GH = (function () {
         var telo = {
           message: "kokpit: aktualizace " + soubor + " (verze " + obsah.verze + ")",
           content: textNaBase64(JSON.stringify(obsah, null, 2)),
-          sha: aktualni.sha,
           branch: KONFIG.vetev
         };
+        // "sha" se posila jen u souboru, ktery uz existuje. U zakladani noveho
+        // (viz nactiNeboZaloz vyse) by prazdna sha zapis shodila.
+        if (aktualni.sha) {
+          telo.sha = aktualni.sha;
+        }
 
         return ghFetch("PUT", cestaObsahu(soubor), telo, {}).then(function (odpoved) {
           if ((odpoved.status === 409 || odpoved.status === 422) && pokus < MAX_POKUSU) {
@@ -606,6 +660,10 @@ var GH = (function () {
           if (odpoved.status === 304) {
             zrusChybuPollingu(soubor); // dotaz prosel, data jsou jen beze zmeny
             return; // callback se nevola
+          }
+          if (odpoved.status === 404 && NEPOVINNE[soubor]) {
+            zrusChybuPollingu(soubor); // soubor zatim neexistuje — to je v poradku
+            return;
           }
           if (!odpoved.ok) {
             console.warn("Polling: chyba při načítání '" + soubor + "' (" + odpoved.status + ")");

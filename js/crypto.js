@@ -78,7 +78,13 @@ var Krypto = (function () {
     if (!blob || !blob.salt || !blob.iv || !blob.ct) {
       return Promise.resolve(null);
     }
-    return odvodKlic(heslo, blob.salt)
+    // POZOR: odvodKlic() dekoduje salt SYNCHRONNE, takze pri nevalidnim
+    // base64 hodilo atob vyjimku JESTE PRED vznikem promisy — .catch nize
+    // se na ni nechytil a utekla ven. Slib „nikdy nevyhazuje ven“ tim padal
+    // a volajici zustal viset (zamek sekce Naklady zamrzl na „Odemykam…“).
+    // Proto se cely zacatek zabaluje do promisy.
+    return Promise.resolve()
+      .then(function () { return odvodKlic(heslo, blob.salt); })
       .then(function (klic) {
         var ivBuffer = base64NaBuffer(blob.iv);
         var ctBuffer = base64NaBuffer(blob.ct);
