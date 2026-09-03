@@ -140,9 +140,21 @@
     return kod ? String(kod) : "Bez kategorie";
   }
 
+  // Po migraci žije smlouva v šifře. Do té doby se bere z otevřených dat,
+  // ať sekce mezitím funguje — a právě rozdíl mezi těmi dvěma místy říká,
+  // jestli je migrace ještě před námi.
   function smlouva() {
+    if (otevrene && otevrene.smlouva) return otevrene.smlouva;
     var n = App.obsah("nastaveni");
     return (n && n.smlouva) || {};
+  }
+
+  // Interní čísla ještě leží v otevřených datech?
+  function jeCoMigrovat() {
+    var n = App.obsah("nastaveni") || {};
+    var maVOtevrenych = !!(n.smlouva || n.interni_upozorneni);
+    var maVSifre = !!(otevrene && (otevrene.smlouva || otevrene.interni));
+    return maVOtevrenych && !maVSifre;
   }
 
   function cenaBezDph() {
@@ -192,13 +204,27 @@
   // Šifrování je asynchronní, mutátor GH.zmen synchronní — nová šifra se proto
   // spočítá PŘED zápisem a v mutátoru se jen vymění. Aby to nepřepsalo cizí
   // změnu, mutátor napřed porovná `ct` na serveru s tím, ze kterého jsme četli.
-  function zapis(novePolozky) {
+  // Šifrovaný obsah nese vedle položek i obchodně citlivé údaje přesunuté
+  // z otevřených dat (smluvní cena, interní upozornění). Musí se protáhnout
+  // KAŽDÝM zápisem, jinak by je první uložená položka zahodila.
+  function obsahKZasifrovani(novePolozky, prepis) {
+    var puvodni = otevrene || {};
+    var vysledek = { polozky: novePolozky };
+    var smlouvaNova = prepis && prepis.smlouva ? prepis.smlouva : puvodni.smlouva;
+    var interniNove = prepis && prepis.interni ? prepis.interni : puvodni.interni;
+    if (smlouvaNova) vysledek.smlouva = smlouvaNova;
+    if (interniNove) vysledek.interni = interniNove;
+    return vysledek;
+  }
+
+  function zapis(novePolozky, prepis) {
     if (!heslo) {
       return Promise.reject(chybaProUzivatele("Náklady jsou zamčené. Odemkni je heslem."));
     }
     var puvodniCt = zakladCt;
     var novyBlob = null;
-    return Krypto.zasifruj({ polozky: novePolozky }, heslo)
+    var kZasifrovani = obsahKZasifrovani(novePolozky, prepis);
+    return Krypto.zasifruj(kZasifrovani, heslo)
       .then(function (blob) {
         novyBlob = blob;
         return GH.zmen(SOUBOR, function (obal) {
@@ -218,10 +244,83 @@
       })
       .then(function (obsah) {
         App.uloz(SOUBOR, obsah);
-        otevrene = { polozky: novePolozky };
+        otevrene = kZasifrovani;
         zakladCt = novyBlob.ct;
         return true;
       });
+  }
+
+  // ---- jednorázový přesun interních čísel z otevřených dat do šifry ----
+  //
+  // POŘADÍ JE ZÁVAZNÉ: napřed zapsat do šifry, uklidit z nastaveni.json TEPRVE
+  // po úspěchu. Kdyby to bylo naopak a druhý krok selhal, čísla by byla
+  // nenávratně pryč. Takhle v nejhorším zůstanou chvíli na dvou místech —
+  // nepříjemné, ale nic se neztratí, a druhé spuštění to dorovná.
+  function presunDoSifry() {
+    var n = App.obsah("nastaveni") || {};
+    var smlouvaZOtevrenych = n.smlouva && typeof n.smlouva === "object" ? n.smlouva : null;
+    var interniZOtevrenych = n.interni_upozorneni && typeof n.interni_upozorneni === "object"
+      ? n.interni_upozorneni : null;
+
+    if (!smlouvaZOtevrenych && !interniZOtevrenych) {
+      App.toast("V otevřených datech už žádná interní čísla nejsou.", "info");
+      App.prekresli();
+      return Promise.resolve(false);
+    }
+
+    // krok 1 — do šifry
+    return zapis(vsechnyPolozky(), {
+      smlouva: smlouvaZOtevrenych || undefined,
+      interni: interniZOtevrenych || undefined
+    })
+      .then(function () {
+        // krok 2 — až teď uklidit z otevřených dat
+        return GH.zmen("nastaveni", function (data) {
+          if (!data || typeof data !== "object") {
+            throw chybaProUzivatele("Nastavení se nepodařilo přečíst.");
+          }
+          delete data.smlouva;
+          delete data.interni_upozorneni;
+        }, "Interní obchodní údaje přesunuty do šifrovaného úložiště")
+          .then(function (obsah) {
+            App.uloz("nastaveni", obsah);
+            App.toast("Přesunuto. Interní čísla už v otevřených datech nejsou.", "ok");
+            App.prekresli();
+            return true;
+          })
+          .catch(function (chyba) {
+            // Šifra už je zapsaná, takže nic není ztracené — jen se to nestihlo
+            // uklidit. Musí to být řečeno naplno, ne schované za obecnou chybu.
+            console.warn("Úklid otevřených dat po přesunu selhal:", chyba);
+            App.toast("Do šifry se to zapsalo, ale úklid otevřených dat se nepovedl. "
+              + "Nic se neztratilo — čísla jsou teď na dvou místech. "
+              + "Zkus přesun ještě jednou.", "chyba");
+            App.prekresli();
+            return false;
+          });
+      })
+      .catch(function (chyba) {
+        ohlasChybu(chyba);
+        return false;
+      });
+  }
+
+  // Přístup pro Přehled: interní obchodní údaje, nebo null když je zamčeno.
+  // Registruje se za běhu — view-*.js se načítají PŘED js/app.js, takže
+  // přiřazení při načtení souboru by nikdo neviděl.
+  function zpristupniPrehledu() {
+    App.interniObchodni = function () {
+      if (!jeSuperadmin() || !otevrene) return null;
+      var n = App.obsah("nastaveni") || {};
+      return {
+        smlouva: otevrene.smlouva || n.smlouva || null,
+        interni: otevrene.interni || n.interni_upozorneni || null
+      };
+    };
+    // Ať Přehled pozná rozdíl mezi „zamčeno" a „nemáš na to právo".
+    App.interniZamceno = function () {
+      return jeSuperadmin() && !otevrene;
+    };
   }
 
   // Vrátí novou kopii seznamu se změněnou položkou daného id, nebo null,
@@ -260,6 +359,8 @@
       }
       heslo = zadane;
       otevrene = { polozky: Array.isArray(data.polozky) ? data.polozky : [] };
+      if (data.smlouva && typeof data.smlouva === "object") otevrene.smlouva = data.smlouva;
+      if (data.interni && typeof data.interni === "object") otevrene.interni = data.interni;
       zakladCt = blob.ct;
       return true;
     });
@@ -1158,6 +1259,7 @@
     hlavicka.appendChild(App.el("h2", "nadpis-sekce", "Náklady na provoz"));
     kontejner.appendChild(hlavicka);
     zaregistrujHlidaniRole();
+    zpristupniPrehledu();
 
     // Pojistka pro případ, že by sem někdo dorazil jinudy než routerem
     // (ten to hlídá v maPravoNaSekci). Data se nezobrazí tak jako tak —
@@ -1227,6 +1329,35 @@
     pruhAkci.appendChild(btnZamek);
     kontejner.appendChild(pruhAkci);
 
+    // Nabídka přesunu se ukáže jen dokud je co přesouvat.
+    if (jeCoMigrovat()) {
+      var vyzva = App.el("div", "naklady-varovani");
+      vyzva.appendChild(App.el("strong", null,
+        "Smluvní cena a interní upozornění leží zatím v otevřených datech. "));
+      vyzva.appendChild(document.createTextNode(
+        "Přečte si je kdokoli z týmu, kdo má přístup do datového repozitáře — "
+        + "tedy i lidé investora a zhotovitele. Přesunem se zašifrují stejným "
+        + "heslem jako náklady a uvidíš je jen ty."));
+      var btnPresun = App.el("button", "btn btn-primarni", "Přesunout interní čísla do šifry");
+      btnPresun.type = "button";
+      var presunBezi = false;
+      btnPresun.addEventListener("click", function () {
+        if (presunBezi) return;   // dvojklik by zapisoval dvakrát
+        presunBezi = true;
+        btnPresun.disabled = true;
+        btnPresun.textContent = "Přesouvám…";
+        presunDoSifry().then(function () { presunBezi = false; })
+          .catch(function () {
+            presunBezi = false;
+            btnPresun.disabled = false;
+            btnPresun.textContent = "Přesunout interní čísla do šifry";
+          });
+      });
+      vyzva.appendChild(document.createElement("br"));
+      vyzva.appendChild(btnPresun);
+      kontejner.appendChild(vyzva);
+    }
+
     vykresliSouhrn(kontejner);
     vykresliKategorie(kontejner);
     vykresliPoNavstevach(kontejner);
@@ -1234,6 +1365,11 @@
     vykresliSeznam(kontejner);
     vykresliSmazane(kontejner);
   }
+
+  // Přístupové funkce registrujeme HNED při načtení, ne až při vykreslení
+  // sekce. Přehled je výchozí sekce a potřebuje aspoň poznat, že je zamčeno —
+  // jinak by se superadminovi neukázal ani odkaz, kde si to odemkne.
+  zpristupniPrehledu();
 
   App.registrujSekci("naklady", vykresli);
 })();

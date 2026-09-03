@@ -245,12 +245,15 @@
 
     var zobrazeno = false;
 
-    // INTERNÍ — jen pro náš tým (strana FD). Je v tom naše obchodní pozice
-    // vůči PORR (kolik nám v rozsahu chybí a že chceme dodatek) a do kokpitu
-    // chodí i Lucie s Veronikou za PORR a lidé z Metrostavu.
-    var jenNas = typeof App.jsemZaFD === "function" ? App.jsemZaFD() : false;
-    var upoz = nastaveni.interni_upozorneni || null;
-    if (jenNas && upoz && upoz.text && !nastaveni.upozorneni_skryto) {
+    // INTERNÍ obchodní pozice vůči PORR (co nám v rozsahu chybí a že chceme
+    // dodatek). Dřív to viselo na App.jsemZaFD(), tedy na STRANĚ — což kromě
+    // Honzy propouštělo i Michala Růžičku (os-07, editor za FD). Franta chtěl,
+    // aby to viděl jen on. Rozhoduje proto role superadmin A odemčené
+    // šifrované úložiště: samotná role je jen organizační, skutečnou hranicí
+    // je heslo, které nikdo jiný nezná.
+    var interni = typeof App.interniObchodni === "function" ? App.interniObchodni() : null;
+    var upoz = interni ? interni.interni : null;
+    if (upoz && upoz.text && !nastaveni.upozorneni_skryto) {
       zobrazeno = true;
       html += '<div class="karta-upozorneni" style="margin-bottom:12px">';
       html += '<span class="karta-upozorneni-ikona" aria-hidden="true"></span>';
@@ -266,6 +269,14 @@
         html += '<button type="button" class="karta-upozorneni-zavrit" data-prehled-akce="skryt-upozorneni" aria-label="Skrýt upozornění">×</button>';
       }
       html += "</div>";
+    } else if (typeof App.interniZamceno === "function" && App.interniZamceno()
+               && !nastaveni.upozorneni_skryto) {
+      // Zamčeno: neukazujeme obsah, jen kde se odemyká. Vidí to jen superadmin
+      // (App.interniZamceno() to hlídá), ostatním se nezobrazí vůbec nic.
+      zobrazeno = true;
+      html += '<p class="karta-meta" style="margin-bottom:12px">'
+        + 'Interní obchodní čísla jsou zamčená — odemkneš je heslem v sekci '
+        + '<a href="#naklady">Náklady na provoz</a>.</p>';
     }
 
     var dalsi = [];
