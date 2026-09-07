@@ -535,6 +535,14 @@
   // vystřelilo 40 dotazů na 404, než se vrátí první chyba)
   var overeniPodleCesty = new Map();
   var pozorovateleNahledu = [];
+  // Čím se fotí. Hodnoty musí sedět s tím, co už je v datech ("dron",
+  // "ruční kamera"), jinak by vznikaly další kategorie pro totéž.
+  var ZARIZENI_NABIDKA = [
+    { kod: "dron", nazev: "Dron" },
+    { kod: "ruční kamera", nazev: "Ruční kamera" },
+    { kod: "", nazev: "Nevím / jiné" }
+  ];
+
   // id materiálu -> je jeho galerie rozbalená? (výchozí: sbalená na jednu řadu)
   var rozbaleneGalerie = {};
 
@@ -974,14 +982,26 @@
       if (s.zarizeni && zarizeni.indexOf(s.zarizeni) === -1) zarizeni.push(s.zarizeni);
     });
 
+    // Snímky bez vyplněného zařízení (typicky nahrané přímo v appce) dřív
+    // nespadly do žádného filtru — byly vidět jen ve „Vše“, takže součty
+    // tlačítek neseděly s celkem a přes filtry se k nim nedalo dostat.
+    // Dostanou proto vlastní kategorii a součty zase sedí.
+    var BEZ_ZARIZENI = "_bez";
+    var pocetBezZarizeni = vsechnySnimky.filter(function (s) { return !s.zarizeni; }).length;
+
     var vybrane = filtrGalerie[material.id] || "vse";
-    if (zarizeni.indexOf(vybrane) === -1) vybrane = "vse";
+    if (vybrane !== "vse" && vybrane !== BEZ_ZARIZENI && zarizeni.indexOf(vybrane) === -1) {
+      vybrane = "vse";
+    }
+    if (vybrane === BEZ_ZARIZENI && !pocetBezZarizeni) vybrane = "vse";
 
     var snimky = vsechnySnimky.filter(function (s) {
-      return vybrane === "vse" || s.zarizeni === vybrane;
+      if (vybrane === "vse") return true;
+      if (vybrane === BEZ_ZARIZENI) return !s.zarizeni;
+      return s.zarizeni === vybrane;
     });
 
-    if (zarizeni.length > 1) {
+    if (zarizeni.length + (pocetBezZarizeni ? 1 : 0) > 1) {
       var pruh = document.createElement("div");
       pruh.className = "galerie-filtr";
       pruh.setAttribute("role", "group");
@@ -998,6 +1018,9 @@
           };
         })
       );
+      if (pocetBezZarizeni) {
+        moznosti.push({ kod: BEZ_ZARIZENI, nazev: "Bez zařazení", pocet: pocetBezZarizeni });
+      }
 
       moznosti.forEach(function (m) {
         var tlacitko = document.createElement("button");
@@ -1585,12 +1608,17 @@
 
   // ---- jediný zápis do materialy.json až po nahrání celé dávky ----
 
-  function zapisFotkyDoDat(jeNovy, cilovyMaterial, nazevCile, navstevaId, hotove) {
+  function zapisFotkyDoDat(jeNovy, cilovyMaterial, nazevCile, navstevaId, hotove, zarizeni) {
     var noveSnimky = hotove.map(function (h) {
       // Nahrává se jedna velikost (1600 px), takže náhled i „velký" míří na
       // tentýž soubor. Popisek = původní název souboru, ať se dá snímek spárovat
       // s originálem na MyAirBridge.
-      return { nahled: h.cesta, velky: h.cesta, popisek: h.popisek, zarizeni: "" };
+      return {
+        nahled: h.cesta,
+        velky: h.cesta,
+        popisek: h.popisek,
+        zarizeni: typeof zarizeni === "string" ? zarizeni : ""
+      };
     });
 
     return GH.zmen(
@@ -1740,6 +1768,7 @@
     var obalCile = document.createElement("div");
     form.appendChild(obalCile);
     var vyberCile = null;
+    var vyberZarizeni = null;
     var poleNazvu = null;
 
     function prekresliCil() {
@@ -1776,6 +1805,25 @@
       poleCile.appendChild(vyberCile);
       obalCile.appendChild(poleCile);
 
+      // Čím to bylo focené. Bez tohohle se snímky ukládaly s prázdným
+      // `zarizeni`, spadly do kategorie „Bez zařazení“ a součty filtrů
+      // pak neseděly s celkem — přesně na to Franta narazil.
+      var poleZarizeni = document.createElement("div");
+      poleZarizeni.className = "pole";
+      var popisekZarizeni = document.createElement("label");
+      popisekZarizeni.setAttribute("for", "pole-nahrat-zarizeni");
+      popisekZarizeni.textContent = "Čím to bylo focené";
+      poleZarizeni.appendChild(popisekZarizeni);
+      vyberZarizeni = document.createElement("select");
+      vyberZarizeni.id = "pole-nahrat-zarizeni";
+      ZARIZENI_NABIDKA.forEach(function (z) {
+        var moznost = document.createElement("option");
+        moznost.value = z.kod;
+        moznost.textContent = z.nazev;
+        vyberZarizeni.appendChild(moznost);
+      });
+      poleZarizeni.appendChild(vyberZarizeni);
+
       var poleNazvuObal = document.createElement("div");
       poleNazvuObal.className = "pole";
       var popisekNazvu = document.createElement("label");
@@ -1792,6 +1840,7 @@
       function prepniNazev() {
         poleNazvuObal.hidden = vyberCile.value !== HODNOTA_NOVY_MATERIAL;
       }
+      obalCile.appendChild(poleZarizeni);
       vyberCile.addEventListener("change", prepniNazev);
       prepniNazev();
 
@@ -1969,7 +2018,8 @@
         }
 
         hlasStav("Zapisuji do dat…");
-        zapisFotkyDoDat(jeNovy, cilovyMaterial, nazevCile, navstevaId, hotove)
+        var zvoleneZarizeni = vyberZarizeni ? vyberZarizeni.value : "";
+        zapisFotkyDoDat(jeNovy, cilovyMaterial, nazevCile, navstevaId, hotove, zvoleneZarizeni)
           .then(function (obsah) {
             probiha = false;
             App.uloz(SOUBOR, obsah);
