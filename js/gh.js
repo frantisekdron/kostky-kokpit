@@ -20,7 +20,13 @@
  *                                        Nikdy nevyhazuje - chyba -> null.
  *                                        Vysledek se cachuje v Map podle cesty.
  *   GH.nahrajSoubor(cesta, blob, popis) -> Promise<boolean>  PUT binarniho souboru
- *                                        (base64), pro budouci pouziti (dodatek §A.6).
+ *                                        (base64) do privatniho repa (dodatek §A.6).
+ *                                        Pouziva ho sekce Materialy pri nahravani
+ *                                        fotek (js/view-materialy.js). Nikdy
+ *                                        nevyhazuje - chyba i chybejici pravo
+ *                                        zapisu -> false, takze si volajici MUSI
+ *                                        vest vlastni seznam neuspesnych souboru.
+ *                                        V demo rezimu nedela nic a vraci false.
  *
  * soubor je jeden z: "nastaveni" | "pristupy" | "lide" | "plan" | "navstevy" |
  *                     "materialy" | "aktivita" | "casosber" | "pripominky" |
@@ -54,6 +60,9 @@
  *                              "Máš jen právo ke čtení." jako v ostrem provozu
  *   GH.spustPolling         -> nedela nic (nikdo jiny data nemeni)
  *   GH.nactiSoubor          -> vraci relativni cestu do seed/ (viz nize)
+ *   GH.nahrajSoubor         -> nenahrava nic a vraci false (v demu neni token
+ *                              ani privatni repo, PUT by letel naprazdno na
+ *                              api.github.com)
  *
  * DULEZITE - HTTP cache: GitHub API vraci na GET "Cache-Control: private, max-age=60",
  * takze prohlizec by bez zasahu obsluhoval opakovany GET na stejnou URL primo ze
@@ -810,9 +819,21 @@ var GH = (function () {
     return btoa(binarniRetezec);
   }
 
-  // ---- nahrani/prepsani binarniho souboru v privatnim repu (pro budouci pouziti) ----
+  // ---- nahrani/prepsani binarniho souboru v privatnim repu ----
+  //
+  // Pouziva sekce Materialy pri nahravani fotek (js/view-materialy.js).
+  // Chyby se POLYKAJI a vraci se jen false - volajici si proto musi sam vest
+  // seznam souboru, ktere neprosly, jinak selhani zapadne.
 
   function nahrajSoubor(cesta, blob, popis) {
+    // demo (dodatek §E): v demu neni token ani privatni repo, takze PUT by
+    // letel naprazdno na api.github.com a spadl na siti. Stejne jako ostatni
+    // funkce v tomhle souboru se tedy demo hlida uz tady, at se na sit nesahne
+    // ani omylem. Volajici to hlasi cloveku sam (v demu se fotky jen zmensi).
+    if (jeDemo()) {
+      console.warn("GH.nahrajSoubor: v demo režimu se nic nenahrává (" + cesta + ").");
+      return Promise.resolve(false);
+    }
     if (!zapisPovolen) {
       return Promise.resolve(false);
     }

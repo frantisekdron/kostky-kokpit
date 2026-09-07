@@ -19,8 +19,38 @@
  *   3. ZBYTEK — videa a ostatní materiály jako dosud: karty s Vimeo embedem
  *      (iframe se staví až na klik na "Přehrát", nikdy víc iframů najednou),
  *      řádkem MyAirBridge (odkaz, kopírování, štítek expirace), poznámkou
- *      a komentáři. Nad nimi filtry podle typu a stavu, seskupení podle návštěvy
- *      (materiály bez návštěvy do skupiny "Bez návštěvy").
+ *      a komentáři.
+ *
+ * ROZDĚLENÍ PODLE NÁVŠTĚV: celý obsah sekce (tichý panel pracovního materiálu,
+ * galerie i karty) je seskupený podle pole `navsteva_id` a skupiny jdou po sobě
+ * podle `cislo` návštěvy. Nadpis skupiny nese číslo, název a datum návštěvy
+ * ("Návštěva č. 1 — Fáze 0 — výchozí stav · 26. 8. 2026"), pod ním souhrn
+ * (kolik materiálů, kolik snímků v galeriích, kolik dat). Materiály bez
+ * návštěvy (průběžná a souhrnné video) končí ve vlastní skupině úplně na konci,
+ * pojmenované "Nepatří k žádné návštěvě". Filtry podle typu a stavu jsou nad
+ * skupinami a — stejně jako dosud — se týkají jen karet, ne galerií a ne
+ * pracovního materiálu; je to napsané i pod nimi, ať to nikoho nemate.
+ *
+ * NAHRÁVÁNÍ FOTEK PŘÍMO V APPCE — tlačítko "Nahrát fotky" u každé skupiny
+ * návštěvy a v hlavičce sekce (tam s výběrem návštěvy). Cíl je VŽDY konkrétní
+ * návštěva, nikdy "někam"; skupina "Nepatří k žádné návštěvě" proto tlačítko
+ * nemá. Každá fotka se ještě v prohlížeči překreslí přes <canvas> na delší
+ * hranu 1600 px a uloží jako JPEG (kvalita 0,82) — tím se z ní zároveň zahodí
+ * EXIF včetně GPS souřadnic. To je záměr, ne vedlejší efekt: do repa nesmí
+ * odejít souřadnice ani originály. Originály se nenahrávají NIKDY, repo na ně
+ * není — ty jdou klientovi přes MyAirBridge a v dialogu se to říká rovnou.
+ * Soubory putují do privátního repa přes GH.nahrajSoubor jeden po druhém do
+ * "foto/materialy/<navsteva_id>/<nazev>-<poradi>.jpg" a teprve až jsou všechny
+ * nahrané, zapíše se JEDNÍM GH.zmen celá dávka do `galerie` cílového materiálu
+ * (víc zápisů = zbytečné commity, riziko souběhu a rychlejší cesta do limitu
+ * API). GH.nahrajSoubor chyby polyká a vrací jen false, proto si tahle sekce
+ * vede vlastní seznam neúspěšných souborů a vypíše ho jmenovitě. Fotky se
+ * přidají do fotomateriálu dané návštěvy; když tam žádný není, založí se
+ * (typ "foto-final"), když jich je víc, člověk si vybere. `pocet` materiálu se
+ * po zápisu srovná na skutečnou délku galerie. Smí to jen role s právem
+ * materialy.pridat / materialy.upravit — čtenář tlačítko vůbec nedostane.
+ * V DEMU se nenahrává nic (GH.nahrajSoubor by bez tokenu střílel na GitHub):
+ * fotky se jen zmenší a ukáže se souhrn, co by se bylo nahrálo.
  *
  * Pro práva materialy.pridat / materialy.upravit / materialy.smazat umožňuje
  * přidání, editaci a soft-delete. Pro právo komentare.pridat umožňuje komentáře
@@ -505,6 +535,15 @@
   // vystřelilo 40 dotazů na 404, než se vrátí první chyba)
   var overeniPodleCesty = new Map();
   var pozorovateleNahledu = [];
+  // id materiálu -> je jeho galerie rozbalená? (výchozí: sbalená na jednu řadu)
+  var rozbaleneGalerie = {};
+
+  function vetaOSnimcich(kolik) {
+    if (kolik === 1) return "1 snímek";
+    if (kolik >= 2 && kolik <= 4) return "všechny " + kolik + " snímky";
+    return "všech " + kolik + " snímků";
+  }
+
   // id materiálu -> vybrané zařízení ve filtru galerie ("vse" | hodnota)
   var filtrGalerie = {};
 
@@ -989,7 +1028,31 @@
         })
       );
     });
+    // Galerie se ukazuje SBALENÁ na jednu řadu. U čtyřiceti snímků z jednoho
+    // natáčení by jinak karta zabrala celou obrazovku a materiály pod ní by
+    // nikdo nenašel. Sbalení je čistě přes mřížku (první řada `auto`, další
+    // nulové a oříznuté), takže se počet dlaždic v řadě řídí šířkou okna —
+    // na mobilu jich je míň než na monitoru — a náhledy z dalších řad se
+    // ani nezačnou stahovat, dokud je člověk nerozbalí (pozorovatel je
+    // nevidí, protože jsou oříznuté na nulovou výšku).
+    var jeRozbalena = !!rozbaleneGalerie[material.id];
+    if (!jeRozbalena) mrizka.classList.add("galerie-mrizka-sbalena");
     blok.appendChild(mrizka);
+
+    if (snimky.length > 1) {
+      var prepinac = document.createElement("button");
+      prepinac.type = "button";
+      prepinac.className = "btn btn-mala btn-sekundarni galerie-vic";
+      prepinac.textContent = jeRozbalena
+        ? "Sbalit zpátky na jednu řadu"
+        : "Zobrazit " + vetaOSnimcich(snimky.length);
+      prepinac.setAttribute("aria-expanded", jeRozbalena ? "true" : "false");
+      prepinac.addEventListener("click", function () {
+        rozbaleneGalerie[material.id] = !jeRozbalena;
+        App.prekresli();
+      });
+      blok.appendChild(prepinac);
+    }
 
     // načítání náhledů až ve chvíli, kdy dlaždice doroluje do výřezu
     window.setTimeout(function () {
@@ -1039,12 +1102,15 @@
   // SYROVÝ MATERIÁL — jen okrajové shrnutí, detail až na rozkliknutí
   //
   // Položky s `syrovy: true` jsou pracovní materiál ke střihu, PORR se
-  // nepředává. Nedávají se proto jako plné karty, ale do jednoho tichého
-  // panelu nahoře. Počty a velikosti udržuje scripts/inventura.py projetím
-  // složky s natáčením — v UI se jen zobrazují, nikdy nepřepisují.
+  // nepředává. Nedávají se proto jako plné karty, ale do tichého panelu
+  // v čele skupiny své návštěvy. Počty a velikosti udržuje scripts/inventura.py
+  // projetím složky s natáčením — v UI se jen zobrazují, nikdy nepřepisují.
+  //
+  // Otevřenost panelu se drží PODLE SKUPINY (klíč = id návštěvy, resp.
+  // "__bez__"), aby rozkliknutí u jedné návštěvy neotevřelo panely u všech.
   // ---------------------------------------------------------------------
 
-  var syroveOtevreno = false;
+  var syroveOtevrene = {};
 
   function popisSyroveho(m) {
     var nazev = m.nazev || "materiál";
@@ -1072,8 +1138,9 @@
     return veta + ". Nepředává se, slouží ke střihu.";
   }
 
-  function vytvorSouhrnSyroveho(syrove) {
+  function vytvorSouhrnSyroveho(syrove, klicSkupiny) {
     if (!syrove.length) return null;
+    var klic = klicSkupiny || "__vse__";
 
     var oddil = document.createElement("section");
     oddil.className = "oddil";
@@ -1084,9 +1151,9 @@
     var panel = document.createElement("details");
     panel.className = "harmonogram-panel";
     panel.style.borderLeftColor = "var(--linka)";
-    panel.open = syroveOtevreno;
+    panel.open = syroveOtevrene[klic] === true;
     panel.addEventListener("toggle", function () {
-      syroveOtevreno = panel.open;
+      syroveOtevrene[klic] = panel.open;
     });
 
     var shrnuti = document.createElement("summary");
@@ -1313,6 +1380,640 @@
   }
 
   // ---------------------------------------------------------------------
+  // NAHRÁVÁNÍ FOTEK PŘÍMO Z APPKY
+  //
+  // Fotka se PŘED odesláním překreslí přes <canvas> na delší hranu 1600 px
+  // a uloží jako JPEG (kvalita 0,82). Překreslení má dva důvody a oba jsou
+  // záměrné:
+  //   1. do repa jde pár set kB místo desítek megabajtů — repo na originály
+  //      není, ty putují klientovi přes MyAirBridge,
+  //   2. canvas zahodí VŠECHNA EXIF metadata včetně GPS souřadnic, takže
+  //      z fotky nikdy neodejde do repa, kde přesně kdo stál.
+  // Originál se neodesílá nikdy a člověk se to dozví přímo v dialogu.
+  //
+  // Cesta v privátním repu: foto/materialy/<navsteva_id>/<nazev>-<poradi>.jpg
+  // (název očištěný o diakritiku a mezery, ať nevznikají divné cesty).
+  // ---------------------------------------------------------------------
+
+  var MAX_HRANA_PX = 1600;
+  var KVALITA_JPEG = 0.82;
+  var SLOZKA_FOTEK = "foto/materialy/";
+  var HODNOTA_NOVY_MATERIAL = "__novy__";
+
+  function jeDemoRezim() {
+    return typeof window !== "undefined" && window.DEMO === true;
+  }
+
+  // Chyba s polem `hlaska` — App.toast ji umí vypsat člověku. Mutátor, který
+  // svůj cíl nenajde, MUSÍ vyhodit tohle a ne jen `return`: tichý no-op by
+  // zvedl verzi souboru a člověk by viděl falešné „Uloženo." (vzor viz
+  // chybaProUzivatele() v js/view-pripominky.js).
+  function chybaProUzivatele(text) {
+    var chyba = new Error(text);
+    chyba.hlaska = text;
+    return chyba;
+  }
+
+  function smiNahravat() {
+    return Auth.can("materialy.pridat") || Auth.can("materialy.upravit");
+  }
+
+  // Název materiálu → kus cesty v repu: bez diakritiky, bez mezer, jen [a-z0-9-].
+  // Bez toho by z „Foto — návštěva č. 1" vznikla cesta s diakritikou a mezerami,
+  // kterou pak nikdo pořádně neotevře.
+  function ocistiProCestu(text) {
+    var zaklad = String(text || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+/, "")
+      .slice(0, 40)
+      .replace(/-+$/, "");
+    return zaklad || "foto";
+  }
+
+  function cislujNaTri(cislo) {
+    var text = String(cislo);
+    while (text.length < 3) text = "0" + text;
+    return text;
+  }
+
+  function bezPripony(nazevSouboru) {
+    var text = String(nazevSouboru || "").trim();
+    var tecka = text.lastIndexOf(".");
+    return tecka > 0 ? text.slice(0, tecka) : text;
+  }
+
+  // Aby nová fotka nepřepsala starší soubor se stejnou cestou, hledá se
+  // nejvyšší už použité pořadí pro tenhle základ názvu a pokračuje se za ním.
+  function dalsiPoradiVGalerii(material, zaklad) {
+    if (!material) return 1;
+    var nejvyssi = 0;
+    var vzor = new RegExp("(?:^|/)" + zaklad.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)\\.jpg$", "i");
+    polozkyGalerie(material).forEach(function (snimek) {
+      var shoda = vzor.exec(snimek.nahled || "");
+      if (!shoda) return;
+      var cislo = parseInt(shoda[1], 10);
+      if (isFinite(cislo) && cislo > nejvyssi) nejvyssi = cislo;
+    });
+    return nejvyssi + 1;
+  }
+
+  function formatBajty(bajtu) {
+    var cislo = Number(bajtu) || 0;
+    if (cislo >= 1048576) {
+      return (Math.round((cislo / 1048576) * 10) / 10).toFixed(1).replace(".", ",") + " MB";
+    }
+    return Math.max(1, Math.round(cislo / 1024)) + " kB";
+  }
+
+  function vetaOFotkach(pocet) {
+    if (pocet === 1) return "1 fotka";
+    if (pocet >= 2 && pocet <= 4) return pocet + " fotky";
+    return pocet + " fotek";
+  }
+
+  // ---- zmenšení jedné fotky přes canvas (a tím i zahození EXIF/GPS) ----
+
+  function zmensiObrazek(soubor) {
+    return new Promise(function (splneno, selhalo) {
+      if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+        selhalo(new Error("prohlížeč neumí otevřít soubor"));
+        return;
+      }
+      var adresa = URL.createObjectURL(soubor);
+      var obrazek = new Image();
+
+      // Prohlížeč sám otočí fotku podle EXIF orientace (image-orientation:
+      // from-image je dnes výchozí), takže naturalWidth/naturalHeight už jsou
+      // po otočení a canvas kreslí fotku nastojato i z mobilu.
+      obrazek.onload = function () {
+        URL.revokeObjectURL(adresa);
+        var sirkaZdroje = obrazek.naturalWidth || obrazek.width;
+        var vyskaZdroje = obrazek.naturalHeight || obrazek.height;
+        if (!sirkaZdroje || !vyskaZdroje) {
+          selhalo(new Error("soubor nevypadá jako obrázek"));
+          return;
+        }
+        var pomer = Math.min(1, MAX_HRANA_PX / Math.max(sirkaZdroje, vyskaZdroje));
+        var sirka = Math.max(1, Math.round(sirkaZdroje * pomer));
+        var vyska = Math.max(1, Math.round(vyskaZdroje * pomer));
+
+        var platno = document.createElement("canvas");
+        platno.width = sirka;
+        platno.height = vyska;
+        var kresba = platno.getContext ? platno.getContext("2d") : null;
+        if (!kresba || typeof platno.toBlob !== "function") {
+          selhalo(new Error("prohlížeč neumí zmenšit obrázek"));
+          return;
+        }
+        // Bílé pozadí: průhlednost z PNG by se do JPEG propsala černě.
+        kresba.fillStyle = "#ffffff";
+        kresba.fillRect(0, 0, sirka, vyska);
+        kresba.drawImage(obrazek, 0, 0, sirka, vyska);
+
+        platno.toBlob(
+          function (blob) {
+            if (blob) splneno({ blob: blob, sirka: sirka, vyska: vyska });
+            else selhalo(new Error("převod na JPEG selhal"));
+          },
+          "image/jpeg",
+          KVALITA_JPEG
+        );
+      };
+      obrazek.onerror = function () {
+        URL.revokeObjectURL(adresa);
+        selhalo(new Error("soubor se nepodařilo otevřít jako obrázek"));
+      };
+      obrazek.src = adresa;
+    });
+  }
+
+  // ---- dávka: zmenšit a nahrát soubor po souboru ----
+  //
+  // Postupně, ne najednou — desítky paralelních PUTů by zbytečně bušily do API
+  // a držely v paměti všechny fotky zároveň. Vrácená Promise se NIKDY neodmítne:
+  // výsledek je {hotove, selhane}, protože GH.nahrajSoubor chyby polyká a vrací
+  // jen false; bez vlastního seznamu by selhání jednoho souboru zapadlo.
+  function zpracujFotky(soubory, kontext, hlasStav) {
+    var hotove = [];
+    var selhane = [];
+    var index = 0;
+
+    function dalsi() {
+      if (index >= soubory.length) {
+        return Promise.resolve({ hotove: hotove, selhane: selhane });
+      }
+      var soubor = soubory[index];
+      var poradiVDavce = index + 1;
+      hlasStav("Zmenšuji " + poradiVDavce + " z " + soubory.length + "…");
+      return zmensiObrazek(soubor)
+        .then(function (vysledek) {
+          var cesta =
+            kontext.slozka + kontext.zaklad + "-" + cislujNaTri(kontext.poradi + hotove.length) + ".jpg";
+          var zaznam = {
+            cesta: cesta,
+            popisek: bezPripony(soubor.name),
+            sirka: vysledek.sirka,
+            vyska: vysledek.vyska,
+            bajtu: vysledek.blob.size,
+            puvodnichBajtu: soubor.size || 0
+          };
+          if (jeDemoRezim()) {
+            // V demu se opravdu jen zmenšuje — na síť se nesahá (viz hlavička).
+            hotove.push(zaznam);
+            return null;
+          }
+          hlasStav("Nahrávám " + poradiVDavce + " z " + soubory.length + "…");
+          return GH.nahrajSoubor(cesta, vysledek.blob, kontext.popisZapisu).then(function (proslo) {
+            if (proslo) hotove.push(zaznam);
+            else selhane.push(soubor.name + " — nahrání do repa selhalo");
+          });
+        })
+        .catch(function (chyba) {
+          selhane.push(soubor.name + " — " + ((chyba && chyba.message) || "zpracování selhalo"));
+        })
+        .then(function () {
+          index++;
+          return dalsi();
+        });
+    }
+
+    return dalsi();
+  }
+
+  // ---- jediný zápis do materialy.json až po nahrání celé dávky ----
+
+  function zapisFotkyDoDat(jeNovy, cilovyMaterial, nazevCile, navstevaId, hotove) {
+    var noveSnimky = hotove.map(function (h) {
+      // Nahrává se jedna velikost (1600 px), takže náhled i „velký" míří na
+      // tentýž soubor. Popisek = původní název souboru, ať se dá snímek spárovat
+      // s originálem na MyAirBridge.
+      return { nahled: h.cesta, velky: h.cesta, popisek: h.popisek, zarizeni: "" };
+    });
+
+    return GH.zmen(
+      SOUBOR,
+      function (polozky) {
+        var cil;
+        if (jeNovy) {
+          cil = {
+            id: GH.noveId("mat"),
+            navsteva_id: navstevaId,
+            prijemce: "PORR",
+            nazev: nazevCile,
+            typ: "foto-final",
+            stav: "ve-zpracovani",
+            pocet: 0,
+            velikost: "",
+            myairbridge: { url: "", expiruje: null, heslo_je: false },
+            vimeo: { url: "" },
+            poznamka:
+              "Fotky nahrané přímo v kokpitu — zmenšené náhledy (delší hrana " +
+              MAX_HRANA_PX +
+              " px). Plné rozlišení patří na MyAirBridge.",
+            galerie: [],
+            smazano: null
+          };
+          polozky.push(cil);
+        } else {
+          cil = najdiPodleId(polozky, cilovyMaterial.id);
+          if (!cil) {
+            throw chybaProUzivatele(
+              'Materiál "' +
+                cilovyMaterial.nazev +
+                '" už v datech není. Fotky jsou nahrané v repu, ale nemám je kam zapsat — ' +
+                "založ materiál znovu a fotky do něj přidej."
+            );
+          }
+        }
+        // Materiál od scripts/emauzy_nahledy.py má místo `galerie` pole `nahledy`.
+        // Převedeme ho na `galerie` (jinak by se nové snímky schovaly za starý
+        // tvar), původní pole ale necháváme být — nic se neztratí.
+        if (!Array.isArray(cil.galerie)) {
+          cil.galerie = polozkyGalerie(cil);
+        }
+        cil.galerie = cil.galerie.concat(noveSnimky);
+        cil.pocet = cil.galerie.length;
+      },
+      'Do materiálu "' + nazevCile + '" nahráno: ' + vetaOFotkach(noveSnimky.length) + "."
+    );
+  }
+
+  // ---- fotomateriály jedné návštěvy (kam se dá dávka přidat) ----
+
+  function fotoMaterialyNavstevy(navstevaId) {
+    return ziskejPolozky("materialy").filter(function (m) {
+      return (
+        m &&
+        !m.smazano &&
+        m.prijemce !== "Emauzy" &&
+        m.syrovy !== true &&
+        m.navsteva_id === navstevaId &&
+        String(m.typ || "").indexOf("foto") === 0
+      );
+    });
+  }
+
+  // Výchozí návštěva v hlavičkovém dialogu: poslední, jejíž datum už bylo
+  // (z té se fotky nejspíš vezou), jinak ta úplně první.
+  function vychoziNavstevaId(navstevy) {
+    var dnes = new Date().toISOString().slice(0, 10);
+    var vybrana = null;
+    navstevy.forEach(function (n) {
+      if (n.datum && n.datum <= dnes) vybrana = n;
+    });
+    return (vybrana || navstevy[0]).id;
+  }
+
+  // ---- dialog ----
+
+  function otevriNahravaniFotek(navstevaIdParam) {
+    if (!smiNahravat()) {
+      App.toast("Na nahrávání fotek nemáš právo.", "chyba");
+      return;
+    }
+    var navstevy = ziskejPolozky("navstevy")
+      .filter(function (n) {
+        return !n.smazano;
+      })
+      .sort(function (a, b) {
+        return (a.cislo || 0) - (b.cislo || 0);
+      });
+    if (!navstevy.length) {
+      App.toast("Fotky se nahrávají vždy do návštěvy — zatím tu žádná není.", "chyba");
+      return;
+    }
+    var vybranaNavsteva = navstevaIdParam || vychoziNavstevaId(navstevy);
+    if (!najdiPodleId(navstevy, vybranaNavsteva)) {
+      App.toast("Návštěva už v datech není. Načti stránku znovu.", "chyba");
+      return;
+    }
+
+    var form = document.createElement("form");
+    form.className = "nahravani-fotek";
+    form.addEventListener("submit", function (udalost) {
+      udalost.preventDefault();
+    });
+
+    var vysvetleni = document.createElement("p");
+    vysvetleni.className = "nahravani-vysvetleni";
+    vysvetleni.textContent =
+      "Každá fotka se ještě tady v prohlížeči zmenší na delší hranu " +
+      MAX_HRANA_PX +
+      " px a uloží jako JPEG. Překreslením se z ní zahodí i EXIF včetně GPS souřadnic — " +
+      "do repa tedy neodejde, kde se stálo. Originály se nenahrávají nikdy, na ty je MyAirBridge.";
+    form.appendChild(vysvetleni);
+
+    // ---- návštěva (u skupiny je daná, v hlavičce se vybírá) ----
+    var poleNavstevy = document.createElement("div");
+    poleNavstevy.className = "pole";
+    var popisekNavstevy = document.createElement("label");
+    popisekNavstevy.textContent = "Návštěva";
+    poleNavstevy.appendChild(popisekNavstevy);
+    if (navstevaIdParam) {
+      var textNavstevy = document.createElement("p");
+      textNavstevy.className = "nahravani-cil";
+      textNavstevy.textContent = nazevSkupinyNavstevy(najdiPodleId(navstevy, vybranaNavsteva));
+      poleNavstevy.appendChild(textNavstevy);
+    } else {
+      popisekNavstevy.setAttribute("for", "pole-nahrat-navsteva");
+      var vyberNavstevy = document.createElement("select");
+      vyberNavstevy.id = "pole-nahrat-navsteva";
+      navstevy.forEach(function (n) {
+        var moznost = document.createElement("option");
+        moznost.value = n.id;
+        moznost.textContent = nazevSkupinyNavstevy(n);
+        if (n.id === vybranaNavsteva) moznost.selected = true;
+        vyberNavstevy.appendChild(moznost);
+      });
+      vyberNavstevy.addEventListener("change", function () {
+        vybranaNavsteva = vyberNavstevy.value;
+        prekresliCil();
+      });
+      poleNavstevy.appendChild(vyberNavstevy);
+    }
+    form.appendChild(poleNavstevy);
+
+    // ---- kam fotky přidat (přestavuje se při změně návštěvy) ----
+    var obalCile = document.createElement("div");
+    form.appendChild(obalCile);
+    var vyberCile = null;
+    var poleNazvu = null;
+
+    function prekresliCil() {
+      while (obalCile.firstChild) obalCile.removeChild(obalCile.firstChild);
+      var navsteva = najdiPodleId(navstevy, vybranaNavsteva);
+      var kandidati = Auth.can("materialy.upravit") ? fotoMaterialyNavstevy(vybranaNavsteva) : [];
+
+      var poleCile = document.createElement("div");
+      poleCile.className = "pole";
+      var popisekCile = document.createElement("label");
+      popisekCile.setAttribute("for", "pole-nahrat-cil");
+      popisekCile.textContent = "Kam fotky přidat";
+      poleCile.appendChild(popisekCile);
+
+      vyberCile = document.createElement("select");
+      vyberCile.id = "pole-nahrat-cil";
+      kandidati.forEach(function (m) {
+        var moznost = document.createElement("option");
+        moznost.value = m.id;
+        var pocetSnimku = polozkyGalerie(m).length;
+        moznost.textContent =
+          m.nazev +
+          (pocetSnimku
+            ? " (" + pocetSnimku + " " + sklonuj(pocetSnimku, "snímek", "snímky", "snímků") + ")"
+            : " (zatím bez snímků)");
+        vyberCile.appendChild(moznost);
+      });
+      if (Auth.can("materialy.pridat")) {
+        var moznostNovy = document.createElement("option");
+        moznostNovy.value = HODNOTA_NOVY_MATERIAL;
+        moznostNovy.textContent = "— založit nový materiál —";
+        vyberCile.appendChild(moznostNovy);
+      }
+      poleCile.appendChild(vyberCile);
+      obalCile.appendChild(poleCile);
+
+      var poleNazvuObal = document.createElement("div");
+      poleNazvuObal.className = "pole";
+      var popisekNazvu = document.createElement("label");
+      popisekNazvu.setAttribute("for", "pole-nahrat-nazev");
+      popisekNazvu.textContent = "Název nového materiálu";
+      poleNazvuObal.appendChild(popisekNazvu);
+      poleNazvu = document.createElement("input");
+      poleNazvu.type = "text";
+      poleNazvu.id = "pole-nahrat-nazev";
+      poleNazvu.value = "Foto — návštěva č. " + ((navsteva && navsteva.cislo) || "?");
+      poleNazvuObal.appendChild(poleNazvu);
+      obalCile.appendChild(poleNazvuObal);
+
+      function prepniNazev() {
+        poleNazvuObal.hidden = vyberCile.value !== HODNOTA_NOVY_MATERIAL;
+      }
+      vyberCile.addEventListener("change", prepniNazev);
+      prepniNazev();
+
+      if (!vyberCile.options.length) {
+        poleCile.hidden = true;
+        poleNazvuObal.hidden = true;
+        var nic = document.createElement("p");
+        nic.className = "nahravani-cil";
+        nic.textContent =
+          "K téhle návštěvě zatím není žádný fotomateriál a založit nový nemáš právo. " +
+          "Ať ho někdo s právem přidávat založí, pak sem fotky půjdou.";
+        obalCile.appendChild(nic);
+      }
+    }
+    prekresliCil();
+
+    // ---- soubory ----
+    var poleSouboru = document.createElement("div");
+    poleSouboru.className = "pole";
+    var popisekSouboru = document.createElement("label");
+    popisekSouboru.setAttribute("for", "pole-nahrat-soubory");
+    popisekSouboru.textContent = "Fotky (dá se vybrat víc najednou)";
+    poleSouboru.appendChild(popisekSouboru);
+    var vstupSouboru = document.createElement("input");
+    vstupSouboru.type = "file";
+    vstupSouboru.id = "pole-nahrat-soubory";
+    vstupSouboru.accept = "image/*";
+    vstupSouboru.multiple = true;
+    poleSouboru.appendChild(vstupSouboru);
+    form.appendChild(poleSouboru);
+
+    if (jeDemoRezim()) {
+      var demoRadek = document.createElement("p");
+      demoRadek.className = "nahravani-demo";
+      demoRadek.textContent =
+        "Demo: fotky se jen zmenší tady v prohlížeči a ukáže se souhrn, co by se bylo nahrálo. " +
+        "Nikam se nic neodesílá a do dat se nic nezapíše — demo nemá přístup k datovému repu.";
+      form.appendChild(demoRadek);
+    }
+
+    var stavovyRadek = document.createElement("p");
+    stavovyRadek.className = "nahravani-stav";
+    stavovyRadek.setAttribute("role", "status");
+    stavovyRadek.setAttribute("aria-live", "polite");
+    form.appendChild(stavovyRadek);
+
+    var obalSouhrnu = document.createElement("div");
+    form.appendChild(obalSouhrnu);
+
+    function hlasStav(text) {
+      stavovyRadek.textContent = text || "";
+    }
+
+    vstupSouboru.addEventListener("change", function () {
+      var pocet = (vstupSouboru.files || []).length;
+      while (obalSouhrnu.firstChild) obalSouhrnu.removeChild(obalSouhrnu.firstChild);
+      hlasStav(pocet ? "Vybráno " + pocet + " " + sklonuj(pocet, "soubor", "soubory", "souborů") + "." : "");
+    });
+
+    // Souhrn po doběhnutí dávky — kolik prošlo, kolik ne a které konkrétně.
+    function vypisSouhrn(hotove, selhane, jeDemoDavka) {
+      while (obalSouhrnu.firstChild) obalSouhrnu.removeChild(obalSouhrnu.firstChild);
+
+      var uvod = document.createElement("p");
+      uvod.className = selhane.length ? "nahravani-souhrn nahravani-souhrn-chyba" : "nahravani-souhrn";
+      var vety = [];
+      if (jeDemoDavka) {
+        vety.push("Demo — nic se neodeslalo.");
+        vety.push("Zmenšeno: " + vetaOFotkach(hotove.length) + ".");
+      } else {
+        vety.push("Nahráno: " + vetaOFotkach(hotove.length) + ".");
+      }
+      if (selhane.length) vety.push("Neprošlo: " + vetaOFotkach(selhane.length) + ".");
+      uvod.textContent = vety.join(" ");
+      obalSouhrnu.appendChild(uvod);
+
+      if (jeDemoDavka && hotove.length) {
+        var seznamDemo = document.createElement("ul");
+        seznamDemo.className = "nahravani-seznam";
+        hotove.forEach(function (h) {
+          var radek = document.createElement("li");
+          radek.textContent =
+            h.cesta +
+            " — " +
+            h.sirka +
+            " × " +
+            h.vyska +
+            " px, " +
+            formatBajty(h.bajtu) +
+            (h.puvodnichBajtu ? " (originál " + formatBajty(h.puvodnichBajtu) + ")" : "");
+          seznamDemo.appendChild(radek);
+        });
+        obalSouhrnu.appendChild(seznamDemo);
+      }
+
+      if (selhane.length) {
+        var seznamChyb = document.createElement("ul");
+        seznamChyb.className = "nahravani-seznam nahravani-seznam-chyba";
+        selhane.forEach(function (popis) {
+          var radek = document.createElement("li");
+          radek.textContent = popis;
+          seznamChyb.appendChild(radek);
+        });
+        obalSouhrnu.appendChild(seznamChyb);
+      }
+    }
+
+    var probiha = false;
+    var handle;
+
+    function spustit() {
+      if (probiha) return;
+      if (!vyberCile || !vyberCile.options.length) {
+        App.toast("Není kam fotky přidat.", "chyba");
+        return;
+      }
+      var soubory = Array.prototype.slice.call(vstupSouboru.files || []);
+      if (!soubory.length) {
+        App.toast("Vyber aspoň jednu fotku.", "chyba");
+        return;
+      }
+
+      var jeNovy = vyberCile.value === HODNOTA_NOVY_MATERIAL;
+      if (jeNovy && !Auth.can("materialy.pridat")) {
+        App.toast("Na založení nového materiálu nemáš právo.", "chyba");
+        return;
+      }
+      if (!jeNovy && !Auth.can("materialy.upravit")) {
+        App.toast("Na úpravu materiálu nemáš právo.", "chyba");
+        return;
+      }
+
+      var cilovyMaterial = null;
+      if (!jeNovy) {
+        cilovyMaterial = najdiPodleId(ziskejPolozky("materialy"), vyberCile.value);
+        if (!cilovyMaterial) {
+          App.toast("Vybraný materiál už v datech není. Načti stránku znovu.", "chyba");
+          return;
+        }
+      }
+      var nazevCile = jeNovy ? poleNazvu.value.trim() : cilovyMaterial.nazev;
+      if (!nazevCile) {
+        App.toast("Vyplň název nového materiálu.", "chyba");
+        return;
+      }
+
+      var navstevaId = vybranaNavsteva;
+      var zaklad = ocistiProCestu(nazevCile);
+      var kontext = {
+        slozka: SLOZKA_FOTEK + ocistiProCestu(navstevaId) + "/",
+        zaklad: zaklad,
+        poradi: dalsiPoradiVGalerii(cilovyMaterial, zaklad),
+        popisZapisu: "kokpit: fotky k návštěvě " + navstevaId
+      };
+
+      probiha = true;
+      while (obalSouhrnu.firstChild) obalSouhrnu.removeChild(obalSouhrnu.firstChild);
+
+      zpracujFotky(soubory, kontext, hlasStav).then(function (vysledek) {
+        var hotove = vysledek.hotove;
+        var selhane = vysledek.selhane;
+
+        if (jeDemoRezim()) {
+          probiha = false;
+          hlasStav("");
+          vypisSouhrn(hotove, selhane, true);
+          return;
+        }
+        if (!hotove.length) {
+          probiha = false;
+          hlasStav("");
+          vypisSouhrn(hotove, selhane, false);
+          App.toast("Nenahrála se ani jedna fotka.", "chyba");
+          return;
+        }
+
+        hlasStav("Zapisuji do dat…");
+        zapisFotkyDoDat(jeNovy, cilovyMaterial, nazevCile, navstevaId, hotove)
+          .then(function (obsah) {
+            probiha = false;
+            App.uloz(SOUBOR, obsah);
+            App.toast("Nahráno: " + vetaOFotkach(hotove.length) + ".", "ok");
+            if (selhane.length) {
+              // Část dávky neprošla — dialog necháváme otevřený, ať si člověk
+              // přečte, které soubory to byly.
+              hlasStav("");
+              vypisSouhrn(hotove, selhane, false);
+            } else {
+              handle.zavri();
+            }
+            App.prekresli();
+          })
+          .catch(function (chyba) {
+            probiha = false;
+            hlasStav("Fotky jsou nahrané v repu, ale zápis do dat selhal.");
+            vypisSouhrn(hotove, selhane, false);
+            App.toast((chyba && chyba.hlaska) || "Zápis fotek do dat selhal.", "chyba");
+          });
+      });
+    }
+
+    handle = App.modal({
+      nadpis: "Nahrát fotky",
+      obsah: form,
+      akce: [
+        {
+          text: "Zavřít",
+          druh: "sekundarni",
+          fn: function () {
+            if (probiha) {
+              App.toast("Nahrávání ještě běží — počkej, až doběhne.", "info");
+              return;
+            }
+            handle.zavri();
+          }
+        },
+        { text: "Nahrát fotky", druh: "primarni", fn: spustit }
+      ]
+    });
+  }
+
+  // ---------------------------------------------------------------------
   // Filtry a seskupeni
   // ---------------------------------------------------------------------
 
@@ -1322,33 +2023,90 @@
     return true;
   }
 
+  // Klíč skupiny pro materiály, které k žádné návštěvě nepatří (průběžná
+  // a souhrnné video). Není to id návštěvy, takže se s ničím nesrazí.
+  var KLIC_BEZ_NAVSTEVY = "__bez__";
+
+  // "Návštěva č. 1 — Fáze 0 — výchozí stav · 26. 8. 2026". Datum se bere
+  // z návštěvy i s její přesností, nikde se nehardcoduje.
+  function nazevSkupinyNavstevy(navsteva) {
+    if (!navsteva) return "Návštěva";
+    var text = "Návštěva č. " + (navsteva.cislo || "?") + " — " + (navsteva.nazev || "bez názvu");
+    var datum = navsteva.datum
+      ? Util.formatDatum(navsteva.datum, navsteva.datum_presnost || "presne", navsteva.datum_do || null)
+      : "";
+    return datum ? text + " · " + datum : text;
+  }
+
+  function souhrnSkupiny(materialy) {
+    var pocetSnimku = 0;
+    var soucetGb = 0;
+    var mameVelikost = false;
+    materialy.forEach(function (m) {
+      pocetSnimku += polozkyGalerie(m).length;
+      var gb = Util.velikostNaGb(m.velikost);
+      if (gb !== null) {
+        soucetGb += gb;
+        mameVelikost = true;
+      }
+    });
+    var casti = [
+      materialy.length + " " + sklonuj(materialy.length, "materiál", "materiály", "materiálů")
+    ];
+    if (pocetSnimku) {
+      casti.push(pocetSnimku + " " + sklonuj(pocetSnimku, "snímek", "snímky", "snímků") + " v galerii");
+    }
+    if (mameVelikost) casti.push("celkem " + formatGb(soucetGb));
+    return casti.join(" · ");
+  }
+
+  // Materiály -> skupiny podle `navsteva_id`, seřazené podle `cislo` návštěvy.
+  // Vrací [{klic, navsteva|null, nazev, materialy}]. Pořadí na konci:
+  // nejdřív návštěvy, pak materiály odkazující na návštěvu, která už v datech
+  // není (ať se neztratí), a úplně nakonec ty, co k žádné návštěvě nepatří.
   function seskupitPodleNavstevy(materialy, navstevy) {
     var skupiny = {};
     materialy.forEach(function (m) {
-      var klic = m.navsteva_id || "__bez__";
+      var klic = m.navsteva_id || KLIC_BEZ_NAVSTEVY;
       if (!skupiny[klic]) skupiny[klic] = [];
       skupiny[klic].push(m);
     });
 
     var vysledek = [];
     var pouzite = {};
-    var razeneNavstevy = navstevy.slice().sort(function (a, b) {
-      return (a.cislo || 0) - (b.cislo || 0);
-    });
-    razeneNavstevy.forEach(function (n) {
-      if (skupiny[n.id]) {
-        vysledek.push({ nazev: "Natáčení č. " + n.cislo + " — " + n.nazev, polozky: skupiny[n.id] });
+    navstevy
+      .slice()
+      .sort(function (a, b) {
+        return (a.cislo || 0) - (b.cislo || 0);
+      })
+      .forEach(function (n) {
+        if (!skupiny[n.id]) return;
+        vysledek.push({
+          klic: n.id,
+          navsteva: n,
+          nazev: nazevSkupinyNavstevy(n),
+          materialy: skupiny[n.id]
+        });
         pouzite[n.id] = true;
-      }
-    });
-    // materialy odkazujici na navstevu, ktera uz neni v aktualnim (nesmazanem)
-    // seznamu navstev - at se neztrati, dej je do vlastni skupiny podle ID
+      });
+
     Object.keys(skupiny).forEach(function (klic) {
-      if (klic === "__bez__" || pouzite[klic]) return;
-      vysledek.push({ nazev: "Návštěva (" + klic + ")", polozky: skupiny[klic] });
+      if (klic === KLIC_BEZ_NAVSTEVY || pouzite[klic]) return;
+      vysledek.push({
+        klic: klic,
+        navsteva: null,
+        nazev: "Návštěva, která už v datech není (" + klic + ")",
+        materialy: skupiny[klic]
+      });
     });
-    if (skupiny["__bez__"]) {
-      vysledek.push({ nazev: "Bez návštěvy", polozky: skupiny["__bez__"] });
+
+    if (skupiny[KLIC_BEZ_NAVSTEVY]) {
+      vysledek.push({
+        klic: KLIC_BEZ_NAVSTEVY,
+        navsteva: null,
+        nazev: "Nepatří k žádné návštěvě",
+        materialy: skupiny[KLIC_BEZ_NAVSTEVY]
+      });
     }
     return vysledek;
   }
@@ -1409,7 +2167,7 @@
   // Vykresleni
   // ---------------------------------------------------------------------
 
-  function vytvorHlavicku(materialy) {
+  function vytvorHlavicku(materialy, navstevy) {
     var oddil = document.createElement("section");
     oddil.className = "oddil";
 
@@ -1428,17 +2186,35 @@
     souhrn.textContent = materialy.length + " materiálů · celkem " + formatGb(soucetGb);
     oddil.appendChild(souhrn);
 
+    var akce = document.createElement("div");
+    akce.className = "karta-akce";
+
     if (Auth.can("materialy.pridat")) {
       var pridat = document.createElement("button");
       pridat.type = "button";
       pridat.className = "btn btn-primarni";
-      pridat.style.marginTop = "10px";
       pridat.textContent = "+ Přidat materiál";
       pridat.addEventListener("click", function () {
         otevriFormularMaterialu(null, "PORR");
       });
-      oddil.appendChild(pridat);
+      akce.appendChild(pridat);
     }
+
+    // Nahrávání z hlavičky sekce míří do návštěvy vybrané v dialogu — tím
+    // jdou fotky i k návštěvě, která zatím žádný materiál nemá (a nemá tedy
+    // ani vlastní skupinu s tlačítkem).
+    if (smiNahravat() && navstevy.length) {
+      var nahrat = document.createElement("button");
+      nahrat.type = "button";
+      nahrat.className = "btn btn-sekundarni";
+      nahrat.textContent = "Nahrát fotky";
+      nahrat.addEventListener("click", function () {
+        otevriNahravaniFotek(null);
+      });
+      akce.appendChild(nahrat);
+    }
+
+    if (akce.childNodes.length) oddil.appendChild(akce);
 
     return oddil;
   }
@@ -1519,6 +2295,93 @@
     return karta;
   }
 
+  // ---------------------------------------------------------------------
+  // Jedna skupina = jedna návštěva. Uvnitř zůstává pořadí vrstev, na které
+  // je sekce zvyklá: tichý panel pracovního materiálu, pak galerie náhledů,
+  // pak karty (ty jediné projdou filtrem typu/stavu). Vrací null, když ve
+  // skupině po filtru nic nezbylo — prázdné nadpisy tu nikoho nezajímají.
+  // ---------------------------------------------------------------------
+
+  function vytvorSkupinu(sk) {
+    var syrove = sk.materialy.filter(function (m) {
+      return m.syrovy === true;
+    });
+    var galerijni = sk.materialy.filter(function (m) {
+      return m.syrovy !== true && maGalerii(m);
+    });
+    var karty = sk.materialy
+      .filter(function (m) {
+        return m.syrovy !== true && !maGalerii(m);
+      })
+      .filter(projdeFiltrem);
+
+    if (!syrove.length && !galerijni.length && !karty.length) return null;
+
+    var oddil = document.createElement("section");
+    oddil.className = "oddil skupina-navstevy";
+
+    var hlava = document.createElement("div");
+    hlava.className = "skupina-navstevy-hlavicka";
+
+    var texty = document.createElement("div");
+    texty.className = "skupina-navstevy-texty";
+    var nadpis = document.createElement("h3");
+    nadpis.className = "skupina-navstevy-nadpis";
+    nadpis.textContent = sk.nazev;
+    texty.appendChild(nadpis);
+    var souhrn = document.createElement("p");
+    souhrn.className = "skupina-navstevy-souhrn";
+    souhrn.textContent = souhrnSkupiny(sk.materialy);
+    texty.appendChild(souhrn);
+    hlava.appendChild(texty);
+
+    // Nahrávat jde jen do konkrétní návštěvy — skupina "Nepatří k žádné
+    // návštěvě" (a skupina po smazané návštěvě) tlačítko nedostane.
+    if (sk.navsteva && smiNahravat()) {
+      var nahrat = document.createElement("button");
+      nahrat.type = "button";
+      nahrat.className = "btn btn-mala btn-sekundarni";
+      nahrat.textContent = "Nahrát fotky";
+      nahrat.addEventListener("click", function () {
+        otevriNahravaniFotek(sk.navsteva.id);
+      });
+      hlava.appendChild(nahrat);
+    }
+    oddil.appendChild(hlava);
+
+    var souhrnSyroveho = vytvorSouhrnSyroveho(syrove, sk.klic);
+    if (souhrnSyroveho) oddil.appendChild(souhrnSyroveho);
+
+    galerijni.forEach(function (m) {
+      var blok = vytvorGaleriiMaterialu(m);
+      if (blok) oddil.appendChild(blok);
+    });
+
+    if (karty.length) {
+      var mrizka = document.createElement("div");
+      mrizka.className = "karty-mrizka";
+      karty.forEach(function (m) {
+        mrizka.appendChild(vytvorKartu(m));
+      });
+      oddil.appendChild(mrizka);
+    }
+
+    return oddil;
+  }
+
+  function vytvorPrazdnyStav(text) {
+    var prazdno = document.createElement("div");
+    prazdno.className = "prazdny-stav";
+    var ikona = document.createElement("div");
+    ikona.className = "prazdny-stav-ikona";
+    var popis = document.createElement("p");
+    popis.className = "prazdny-stav-text";
+    popis.textContent = text;
+    prazdno.appendChild(ikona);
+    prazdno.appendChild(popis);
+    return prazdno;
+  }
+
   function vykresli(kontejnerParam) {
     var kontejner = kontejnerParam || document.getElementById("obsah");
     if (!kontejner) return;
@@ -1532,76 +2395,42 @@
       return !n.smazano;
     });
 
-    // Tři různé druhy obsahu, každý se zobrazuje jinak:
-    //   syrové     — pracovní materiál ke střihu, jen tiché shrnutí nahoře
-    //   galerijní  — materiál s náhledy, hlavní obsah sekce (mřížka)
-    //   ostatní    — videa a zbytek, běžné karty pod galerií
-    var syrove = vsechnyMaterialy.filter(function (m) {
-      return m.syrovy === true;
-    });
-    var galerijni = vsechnyMaterialy.filter(function (m) {
-      return m.syrovy !== true && maGalerii(m);
-    });
-    var ostatni = vsechnyMaterialy.filter(function (m) {
-      return m.syrovy !== true && !maGalerii(m);
-    });
-
     while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
 
-    kontejner.appendChild(vytvorHlavicku(vsechnyMaterialy));
+    kontejner.appendChild(vytvorHlavicku(vsechnyMaterialy, navstevy));
 
-    var souhrnSyroveho = vytvorSouhrnSyroveho(syrove);
-    if (souhrnSyroveho) kontejner.appendChild(souhrnSyroveho);
-
-    galerijni.forEach(function (m) {
-      var blok = vytvorGaleriiMaterialu(m);
-      if (blok) kontejner.appendChild(blok);
-    });
-
+    // Filtry jdou nad skupiny, protože obsah je teď rozdělený po návštěvách.
+    // Týkají se ale pořád jen karet (ne galerií, ne pracovního materiálu) —
+    // je to pod nimi napsané, ať to není hádanka.
     var filtryOddil = document.createElement("section");
     filtryOddil.className = "oddil";
     filtryOddil.appendChild(vytvorFiltry(kontejner));
+    var poznamkaFiltru = document.createElement("p");
+    poznamkaFiltru.className = "filtr-poznamka";
+    poznamkaFiltru.textContent =
+      "Filtr se týká seznamu materiálů — galerií náhledů ani pracovního materiálu se nedotýká.";
+    filtryOddil.appendChild(poznamkaFiltru);
     kontejner.appendChild(filtryOddil);
 
-    var filtrovane = ostatni.filter(projdeFiltrem);
-    var skupiny = seskupitPodleNavstevy(filtrovane, navstevy);
+    var skupiny = seskupitPodleNavstevy(vsechnyMaterialy, navstevy);
+    var vykreslenych = 0;
+    skupiny.forEach(function (sk) {
+      var blok = vytvorSkupinu(sk);
+      if (!blok) return;
+      kontejner.appendChild(blok);
+      vykreslenych++;
+    });
 
-    var seznamOddil = document.createElement("section");
-    seznamOddil.className = "oddil";
-
-    if (!filtrovane.length) {
-      var prazdno = document.createElement("div");
-      prazdno.className = "prazdny-stav";
-      var ikona = document.createElement("div");
-      ikona.className = "prazdny-stav-ikona";
-      var text = document.createElement("p");
-      text.className = "prazdny-stav-text";
-      if (!ostatni.length) {
-        text.textContent = vsechnyMaterialy.length
-          ? "Další materiály tu zatím nejsou — galerie a pracovní materiál jsou nahoře."
-          : "Zatím žádné materiály.";
-      } else {
-        text.textContent = "Žádný materiál neodpovídá filtru.";
-      }
-      prazdno.appendChild(ikona);
-      prazdno.appendChild(text);
-      seznamOddil.appendChild(prazdno);
-    } else {
-      skupiny.forEach(function (sk) {
-        var nadpis = document.createElement("h3");
-        nadpis.className = "osa-rok";
-        nadpis.textContent = sk.nazev;
-        seznamOddil.appendChild(nadpis);
-
-        var mrizka = document.createElement("div");
-        mrizka.className = "karty-mrizka";
-        sk.polozky.forEach(function (m) {
-          mrizka.appendChild(vytvorKartu(m));
-        });
-        seznamOddil.appendChild(mrizka);
-      });
+    if (!vykreslenych) {
+      var seznamOddil = document.createElement("section");
+      seznamOddil.className = "oddil";
+      seznamOddil.appendChild(
+        vytvorPrazdnyStav(
+          vsechnyMaterialy.length ? "Žádný materiál neodpovídá filtru." : "Zatím žádné materiály."
+        )
+      );
+      kontejner.appendChild(seznamOddil);
     }
-    kontejner.appendChild(seznamOddil);
   }
 
   // ---------------------------------------------------------------------

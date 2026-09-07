@@ -4058,3 +4058,17 @@ details.odpovedi[open] > summary::before {
   font-size: 0.9rem;
   line-height: 1.45;
 }
+
+/* Sbalena galerie: prvni rada zustane, dalsi maji nulovou vysku a orizne se.
+   Diky auto-fill se pocet dlazdic v rade ridi sirkou okna, takze to sedi
+   na mobilu i na monitoru bez jedineho mereni v JS. */
+.galerie-mrizka-sbalena {
+  grid-template-rows: auto;
+  grid-auto-rows: 0;
+  row-gap: 0;
+  overflow: hidden;
+}
+
+.galerie-vic {
+  margin-top: 12px;
+}
