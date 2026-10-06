@@ -2,10 +2,12 @@
  * mapa.js — vlastní mapa nad dlaždicemi OpenStreetMap (KONTRAKT_DODATEK.md §A.5).
  *
  * ŽÁDNÝ Leaflet, žádné CDN skripty, žádné API klíče. Dlaždice jsou obyčejné
- * <img> z https://tile.openstreetmap.org/{z}/{x}/{y}.png s loading="lazy"
- * a referrerpolicy="no-referrer". Když se dlaždice nenačtou (blokovaná síť,
- * offline), mapa NESMÍ spadnout — místo ní se ukáže šedé pole s hláškou
- * „Mapu se nepodařilo načíst" a souřadnicemi.
+ * <img> z https://tile.openstreetmap.org/{z}/{x}/{y}.png s loading="lazy".
+ * Referrer se NEPOTLAČUJE — pravidla provozu dlaždic OpenStreetMap chtějí,
+ * aby se aplikace představila, a anonymní požadavky blokují (6. 10. 2026
+ * nám místo mapy vracely obrázek „Access blocked"). Když se dlaždice
+ * nenačtou (blokovaná síť, offline), mapa NESMÍ spadnout — místo ní se ukáže
+ * šedé pole s hláškou „Mapu se nepodařilo načíst" a souřadnicemi.
  *
  * Vystavuje globální objekt Mapa:
  *   Mapa.vytvor(kontejner, {lat, lon, zoom, klikatelna, naZmenu, popisek})
@@ -40,6 +42,14 @@ var Mapa = (function () {
   "use strict";
 
   var VELIKOST_DLAZDICE = 256;
+  // OpenStreetMap občas vrátí místo mapy obrázek "Access blocked" (aplikace,
+  // která se nepředstaví, jim porušuje pravidla provozu dlaždic). Takový
+  // obrázek se prohlížeči uloží do keše na dlouho a mapa pak vypadá rozbitě
+  // i dlouho poté, co blokace skončí. Tahle značka je součástí adresy
+  // dlaždice: když se číslo zvýší, prohlížeč si je musí stáhnout znovu.
+  // Zvyšovat jen při takové nehodě, ne při každé úpravě — jinak by se kešovalo
+  // nanečisto a zbytečně bychom jim zvyšovali provoz.
+  var ZNACKA_DLAZDIC = "2";
   var ZOOM_MIN = 15;
   var ZOOM_MAX = 19;
   var ZOOM_VYCHOZI = 18;
@@ -337,7 +347,11 @@ var Mapa = (function () {
           obrazek.alt = "";
           obrazek.loading = "lazy";
           obrazek.decoding = "async";
-          obrazek.referrerPolicy = "no-referrer";
+          // Dřív tu bylo referrerPolicy="no-referrer". Jenže pravidla provozu
+          // dlaždic OpenStreetMap chtějí, aby se aplikace představila —
+          // anonymní požadavky blokují. Necháváme proto výchozí chování
+          // prohlížeče (strict-origin-when-cross-origin): odejde jen adresa
+          // kokpitu bez cesty, tedy žádné id návštěvy ani jméno v odkazu.
           obrazek.width = VELIKOST_DLAZDICE;
           obrazek.height = VELIKOST_DLAZDICE;
           obrazek.style.left = Math.round(tx * VELIKOST_DLAZDICE - levyHorniX) + "px";
@@ -353,7 +367,8 @@ var Mapa = (function () {
             if (!nactenaAsponJedna && chyb >= celkem) prepniNaNahradu();
           });
           obrazek.src =
-            "https://tile.openstreetmap.org/" + zoom + "/" + txOmotane + "/" + ty + ".png";
+            "https://tile.openstreetmap.org/" + zoom + "/" + txOmotane + "/" + ty + ".png" +
+            "?v=" + ZNACKA_DLAZDIC;
           vrstvaDlazdic.appendChild(obrazek);
           celkem++;
         }
