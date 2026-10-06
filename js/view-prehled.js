@@ -354,18 +354,30 @@
 
   function htmlRozsah(nastaveni, navstevy, materialy, casosber) {
     var rozsah = nastaveni.rozsah || {};
-    var probehle = navstevy.filter(function (n) { return !n.smazano && n.stav === "probehlo"; });
+    // Konec sjednané doby. Co je naplánované za ním, do rozsahu nepatří —
+    // je to práce na dodatek a počítá se zvlášť.
+    var konecSmlouvy = poMesicich(nastaveni.zahajeni, rozsah.mesicu);
+    function veSmlouve(n) {
+      if (!konecSmlouvy || !n.datum) return true;
+      return String(n.datum).slice(0, 10) <= konecSmlouvy;
+    }
+
+    var zive = navstevy.filter(function (n) { return !n.smazano; });
+    var probehle = zive.filter(function (n) { return n.stav === "probehlo" && veSmlouve(n); });
 
     var foto = probehle.reduce(function (s, n) { return s + ((n.cerpa && n.cerpa.foto) || 0); }, 0);
     // Natáčecí blok = jeden výjezd s kamerou. V nabídce je "dron + ruční
     // záběry" JEDNA položka (8× blok), takže den, kdy se nelétá (interiéry,
     // počasí, zákaz), je pořád jeden z těch osmi bloků. Proto se z dronu
     // a ručních záběrů bere ten větší, ne součet — jinak by jeden výjezd
-    // ukrojil z rozsahu dvakrát.
+    // ukrojil z rozsahu dvakrát. Oba druhy záběrů se pak ukazují zvlášť
+    // pod pruhem, ale do součtu rozsahu se nepřičítají.
     var dron = probehle.reduce(function (s, n) {
       var c = n.cerpa || {};
       return s + Math.max(Number(c.dron) || 0, Number(c.video) || 0);
     }, 0);
+    var dronSam = probehle.reduce(function (s, n) { return s + ((n.cerpa && n.cerpa.dron) || 0); }, 0);
+    var rucni = probehle.reduce(function (s, n) { return s + ((n.cerpa && n.cerpa.video) || 0); }, 0);
 
     var porrMaterialy = materialy.filter(function (m) { return !m.smazano && jePorr(m); });
     var prubezna = porrMaterialy.filter(function (m) {
@@ -407,7 +419,6 @@
     // Smlouva je na sjednaný počet měsíců od zahájení. Stavba se ale předává
     // později, takže zbytek dokumentace není v ceně — ať to je v přehledu
     // vidět dřív, než ta doba doběhne.
-    var konecSmlouvy = poMesicich(nastaveni.zahajeni, rozsah.mesicu);
     if (konecSmlouvy) {
       var veta = "Smlouva pokrývá " + rozsah.mesicu + " měsíců dokumentace, tedy do " +
         Util.formatDatum(konecSmlouvy) + ".";
@@ -417,9 +428,29 @@
           navic + " měsíců dokumentace je navíc nad rámec smlouvy a řeší se dodatkem k objednávce.";
       }
       html += '<p class="karta-meta" style="margin:0 0 12px">' + esc(veta) + "</p>";
+
+      // Co je naplánované až za koncem smlouvy. Není to splněný ani nesplněný
+      // rozsah — je to práce, která zatím nikde není objednaná.
+      var zaSmlouvou = zive.filter(function (n) { return !veSmlouve(n); });
+      var fotoNavic = zaSmlouvou.reduce(function (s, n) { return s + ((n.cerpa && n.cerpa.foto) || 0); }, 0);
+      var blokyNavic = zaSmlouvou.reduce(function (s, n) {
+        var c = n.cerpa || {};
+        return s + Math.max(Number(c.dron) || 0, Number(c.video) || 0);
+      }, 0);
+      if (fotoNavic > 0 || blokyNavic > 0) {
+        html += '<p class="karta-meta" style="margin:0 0 12px">' +
+          esc("Nad rámec smlouvy je zatím v plánu focení " + fotoNavic + "× a natáčecí bloky " +
+            blokyNavic + "×. Patří do dodatku, do pruhů níž se nepočítají.") + "</p>";
+      }
     }
     polozky.forEach(function (p) {
       html += pruh(p[0], p[1], p[2]);
+      // Pod natáčecími bloky ještě rozpad na dron a ruční záběry. Je to pohled
+      // dovnitř téže položky, do součtu rozsahu nevstupuje.
+      if (p[0].indexOf("Natáčecí bloky") === 0) {
+        html += pruh("z toho s dronem", dronSam, p[2]);
+        html += pruh("z toho ruční záběry", rucni, p[2]);
+      }
     });
     html += "</section>";
     return html;
