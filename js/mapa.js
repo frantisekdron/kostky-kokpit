@@ -238,11 +238,12 @@ var Mapa = (function () {
     ovladani.appendChild(btnMinus);
     platno.appendChild(ovladani);
 
+    var napovedaEl = null;
     if (nastaveni.klikatelna) {
-      var napoveda = document.createElement("p");
-      napoveda.className = "mapa-napoveda";
-      napoveda.textContent = "Klikni do mapy a urči bod.";
-      platno.appendChild(napoveda);
+      napovedaEl = document.createElement("p");
+      napovedaEl.className = "mapa-napoveda";
+      napovedaEl.textContent = "Klikni do mapy a urči bod.";
+      platno.appendChild(napovedaEl);
     }
 
     kontejner.appendChild(platno);
@@ -255,7 +256,15 @@ var Mapa = (function () {
     var nactenaAsponJedna = false;
     var casovacNahrady = null;
     var pozorovatelVelikosti = null;
+    var pozorovatelViditelnosti = null;
     var naplanovanyRam = null;
+    var nahradaEl = null;
+    // Dokud mapa není v zorném poli, dlaždice se kvůli loading="lazy" vůbec
+    // nestáhnou — a to NENÍ chyba. Bez tohohle příznaku by pojistka níž
+    // překlopila do šedého pole každou mapu, ke které člověk nedoroloval
+    // do osmi vteřin. Když prohlížeč IntersectionObserver neumí, bereme mapu
+    // za viditelnou a chováme se jako dřív.
+    var jeVidet = typeof window.IntersectionObserver !== "function";
 
     function rozmery() {
       var sirka = platno.clientWidth || kontejner.clientWidth || 0;
@@ -268,14 +277,32 @@ var Mapa = (function () {
       selhalo = true;
       while (platno.firstChild) platno.removeChild(platno.firstChild);
       platno.classList.add("mapa-platno-selhalo");
-      platno.appendChild(vytvorNahradu(stredLat, stredLon));
+      nahradaEl = vytvorNahradu(stredLat, stredLon);
+      platno.appendChild(nahradaEl);
+    }
+
+    // Šedé pole není konečné. Když se mapa dostane do zorného pole (nebo se
+    // změní velikost), vrátíme vrstvy zpátky a zkusíme dlaždice stáhnout znovu.
+    function zkusZnovu() {
+      if (zniceno || !selhalo) return;
+      selhalo = false;
+      nactenaAsponJedna = false;
+      if (nahradaEl && nahradaEl.parentNode === platno) platno.removeChild(nahradaEl);
+      nahradaEl = null;
+      platno.classList.remove("mapa-platno-selhalo");
+      platno.appendChild(vrstvaDlazdic);
+      platno.appendChild(vrstvaMarkeru);
+      platno.appendChild(ovladani);
+      if (napovedaEl) platno.appendChild(napovedaEl);
+      prekresli();
     }
 
     // Pojistka: když se do 8 s nenačte ani jedna dlaždice (blokovaná síť,
     // offline), přepneme na šedé pole. onerror u <img> to většinou zvládne
     // dřív, tohle je záchrana pro případ, kdy požadavek jen visí.
     function spustCasovacNahrady() {
-      if (casovacNahrady !== null) return;
+      // Mimo zorné pole se nečeká na nic — dlaždice se schválně ještě nestahují.
+      if (casovacNahrady !== null || !jeVidet) return;
       casovacNahrady = window.setTimeout(function () {
         casovacNahrady = null;
         if (!nactenaAsponJedna) prepniNaNahradu();
@@ -561,6 +588,32 @@ var Mapa = (function () {
       window.addEventListener("resize", naplanujPrekresleni);
     }
 
+    // ---- reakce na to, že se mapa objeví v zorném poli ----
+    //
+    // Mapa bývá až pod delším obsahem sekce. Dokud na ni člověk nedoroluje,
+    // líné dlaždice se nestáhnou; teprve tady má smysl kreslit a hlídat čas.
+    // Kdyby mapa mezitím spadla do šedého pole, zkusíme to ještě jednou.
+    if (typeof window.IntersectionObserver === "function") {
+      pozorovatelViditelnosti = new window.IntersectionObserver(
+        function (zaznamy) {
+          var vidim = false;
+          zaznamy.forEach(function (z) {
+            if (z.isIntersecting) vidim = true;
+          });
+          if (!vidim || zniceno) return;
+          jeVidet = true;
+          if (selhalo) {
+            zkusZnovu();
+            return;
+          }
+          naplanujPrekresleni();
+          spustCasovacNahrady();
+        },
+        { rootMargin: "200px" }
+      );
+      pozorovatelViditelnosti.observe(platno);
+    }
+
     // Kontejner v modálu ještě nemá rozměr — první kreslení až po layoutu.
     naplanujPrekresleni();
 
@@ -637,6 +690,7 @@ var Mapa = (function () {
         window.removeEventListener("mouseup", naMouseUp);
         window.removeEventListener("resize", naplanujPrekresleni);
         if (pozorovatelVelikosti) pozorovatelVelikosti.disconnect();
+        if (pozorovatelViditelnosti) pozorovatelViditelnosti.disconnect();
         while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
       }
     };
