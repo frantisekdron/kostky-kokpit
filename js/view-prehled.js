@@ -335,12 +335,37 @@
       '" style="width:' + proc.toFixed(1) + '%"></div></div></div>';
   }
 
+  // Datum posunuté o celé měsíce (konec sjednané doby dokumentace).
+  function poMesicich(iso, mesicu) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime()) || !mesicu) return null;
+    var den = d.getDate();
+    d.setMonth(d.getMonth() + Number(mesicu));
+    if (d.getDate() < den) d.setDate(0); // kratší měsíc — spadnout na jeho konec
+    return d.toISOString().slice(0, 10);
+  }
+
+  function rozdilMesicu(odIso, doIso) {
+    var a = new Date(odIso);
+    var b = new Date(doIso);
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0;
+    return Math.round((b - a) / (1000 * 60 * 60 * 24 * 30.44));
+  }
+
   function htmlRozsah(nastaveni, navstevy, materialy, casosber) {
     var rozsah = nastaveni.rozsah || {};
     var probehle = navstevy.filter(function (n) { return !n.smazano && n.stav === "probehlo"; });
 
     var foto = probehle.reduce(function (s, n) { return s + ((n.cerpa && n.cerpa.foto) || 0); }, 0);
-    var dron = probehle.reduce(function (s, n) { return s + ((n.cerpa && n.cerpa.dron) || 0); }, 0);
+    // Natáčecí blok = jeden výjezd s kamerou. V nabídce je "dron + ruční
+    // záběry" JEDNA položka (8× blok), takže den, kdy se nelétá (interiéry,
+    // počasí, zákaz), je pořád jeden z těch osmi bloků. Proto se z dronu
+    // a ručních záběrů bere ten větší, ne součet — jinak by jeden výjezd
+    // ukrojil z rozsahu dvakrát.
+    var dron = probehle.reduce(function (s, n) {
+      var c = n.cerpa || {};
+      return s + Math.max(Number(c.dron) || 0, Number(c.video) || 0);
+    }, 0);
 
     var porrMaterialy = materialy.filter(function (m) { return !m.smazano && jePorr(m); });
     var prubezna = porrMaterialy.filter(function (m) {
@@ -359,7 +384,7 @@
 
     var polozky = [
       ["Foto sezení", foto, rozsah.foto_sezeni || 0],
-      ["Dron bloky", dron, rozsah.dron_bloky || 0],
+      ["Natáčecí bloky — dron i ruční", dron, rozsah.dron_bloky || 0],
       ["Průběžná videa", prubezna, rozsah.videa_prubezna || 0],
       ["Souhrnné video", souhrnne, rozsah.video_souhrnne || 0],
       ["Časosběrné kamery", kamery, rozsah.kamery || 0]
@@ -376,10 +401,23 @@
     var procenta = celkem > 0 ? Math.round((dodano / celkem) * 100) : 0;
 
     var html = '<section class="oddil"><h2 class="nadpis-sekce">Plnění rozsahu</h2>';
-    html += '<p class="podnadpis-sekce" style="margin:0 0 12px">Dodáno ' + dodano + " z " + celkem +
-      " položek rozsahu, tedy " + procenta + " %." +
-      (nastaveni.predani ? " Dokumentace běží do " + esc(Util.formatDatum(nastaveni.predani)) + "." : "") +
-      "</p>";
+    html += '<p class="podnadpis-sekce" style="margin:0 0 8px">Dodáno ' + dodano + " z " + celkem +
+      " položek rozsahu, tedy " + procenta + " %.</p>";
+
+    // Smlouva je na sjednaný počet měsíců od zahájení. Stavba se ale předává
+    // později, takže zbytek dokumentace není v ceně — ať to je v přehledu
+    // vidět dřív, než ta doba doběhne.
+    var konecSmlouvy = poMesicich(nastaveni.zahajeni, rozsah.mesicu);
+    if (konecSmlouvy) {
+      var veta = "Smlouva pokrývá " + rozsah.mesicu + " měsíců dokumentace, tedy do " +
+        Util.formatDatum(konecSmlouvy) + ".";
+      var navic = nastaveni.predani ? rozdilMesicu(konecSmlouvy, nastaveni.predani) : 0;
+      if (navic > 0) {
+        veta += " Stavba se předává " + Util.formatDatum(nastaveni.predani) + ", takže zhruba " +
+          navic + " měsíců dokumentace je navíc nad rámec smlouvy a řeší se dodatkem k objednávce.";
+      }
+      html += '<p class="karta-meta" style="margin:0 0 12px">' + esc(veta) + "</p>";
+    }
     polozky.forEach(function (p) {
       html += pruh(p[0], p[1], p[2]);
     });
