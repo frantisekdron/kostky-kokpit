@@ -335,7 +335,7 @@
       '" style="width:' + proc.toFixed(1) + '%"></div></div></div>';
   }
 
-  function htmlRozsah(nastaveni, navstevy, materialy) {
+  function htmlRozsah(nastaveni, navstevy, materialy, casosber) {
     var rozsah = nastaveni.rozsah || {};
     var probehle = navstevy.filter(function (n) { return !n.smazano && n.stav === "probehlo"; });
 
@@ -350,11 +350,39 @@
       return m.nazev.indexOf("Souhrnné video") === 0 && (m.stav === "hotovo" || m.stav === "predano");
     }).length;
 
+    // Časosběrné kamery jsou součást rozsahu stejně jako focení a videa.
+    // Za osazenou se bere místo, u kterého je vyplněný model kamery — místo
+    // bez kamery je pořád jen vytipované, i když je schválené.
+    var kamery = (casosber || []).filter(function (m) {
+      return !m.smazano && m.kamera && String(m.kamera).trim() !== "";
+    }).length;
+
+    var polozky = [
+      ["Foto sezení", foto, rozsah.foto_sezeni || 0],
+      ["Dron bloky", dron, rozsah.dron_bloky || 0],
+      ["Průběžná videa", prubezna, rozsah.videa_prubezna || 0],
+      ["Souhrnné video", souhrnne, rozsah.video_souhrnne || 0],
+      ["Časosběrné kamery", kamery, rozsah.kamery || 0]
+    ];
+
+    // Souhrn jedním číslem. Počítá kusy rozsahu, ne peníze ani odpracovaný
+    // čas — u tříleté zakázky ukazuje hlavně to, kolik práce je ještě před námi.
+    var dodano = 0;
+    var celkem = 0;
+    polozky.forEach(function (p) {
+      dodano += Math.min(p[1], p[2]);
+      celkem += p[2];
+    });
+    var procenta = celkem > 0 ? Math.round((dodano / celkem) * 100) : 0;
+
     var html = '<section class="oddil"><h2 class="nadpis-sekce">Plnění rozsahu</h2>';
-    html += pruh("Foto sezení", foto, rozsah.foto_sezeni || 0);
-    html += pruh("Dron bloky", dron, rozsah.dron_bloky || 0);
-    html += pruh("Průběžná videa", prubezna, rozsah.videa_prubezna || 0);
-    html += pruh("Souhrnné video", souhrnne, rozsah.video_souhrnne || 0);
+    html += '<p class="podnadpis-sekce" style="margin:0 0 12px">Dodáno ' + dodano + " z " + celkem +
+      " položek rozsahu, tedy " + procenta + " %." +
+      (nastaveni.predani ? " Dokumentace běží do " + esc(Util.formatDatum(nastaveni.predani)) + "." : "") +
+      "</p>";
+    polozky.forEach(function (p) {
+      html += pruh(p[0], p[1], p[2]);
+    });
     html += "</section>";
     return html;
   }
@@ -440,7 +468,7 @@
     html += htmlHlavicka(nastaveni);
     html += htmlDalsiNatoceni(dalsi, lide, plan, nastaveni);
     html += htmlUpozorneni(nastaveni, navstevy, materialy, smiSpravovatNastaveni);
-    html += htmlRozsah(nastaveni, navstevy, materialy);
+    html += htmlRozsah(nastaveni, navstevy, materialy, polozkyZeSouboru("casosber"));
     html += htmlAktivita(aktivita, navstevy, plan, materialy, lide);
 
     cil.innerHTML = html;
