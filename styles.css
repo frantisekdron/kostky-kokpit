@@ -5637,3 +5637,2097 @@ details.odpovedi[open] > summary::before {
 }
 
 
+
+/* =====================================================================
+   PLÁN STAVBY — přestavba 8. 10. 2026 (view-plan.js)
+   Vložit AŽ ZA stávající CSS (za blok „Návštěvy“ s .nv-*), protože se
+   přebíjí proměnná --nv-sloupce u .nv-tabulka a drobnosti u .nv-radek-nazev
+   stejnou specificitou. Všechny nové třídy mají předponu pl-.
+   Kořen sekce je <div class="nv pl"> — základ (sloupec, mezery, max-width,
+   tmavé tokeny) dává třída .nv, panel detailu je dialog.nv-panel.
+   ===================================================================== */
+
+/* ---------- Barvy stavů: proměnná se dědí na tečku, segment i slovo ---------- */
+.pl-stav-hotovo,
+.pl-stav-probiha   { --pl-barva: var(--akcent); }
+.pl-stav-planovano { --pl-barva: var(--text-slaby); }
+.pl-stav-posunuto  { --pl-barva: var(--varovani); }
+
+/* Barvy stavů NÁVŠTĚV (čipy, kosočtverce na pásu, řádky v panelu) — stejné
+   odstíny jako .nv-stav-* v sekci Návštěvy, ať jedna barva znamená jedno. */
+.pl-cip-navrh,        .pl-nat-navrh        { --pl-cip: #8a949a; }
+.pl-cip-ke-schvaleni, .pl-nat-ke-schvaleni { --pl-cip: #f0a030; }
+.pl-cip-schvaleno,    .pl-nat-schvaleno    { --pl-cip: #b8dd86; }
+.pl-cip-potvrzeno,    .pl-nat-potvrzeno    { --pl-cip: var(--akcent); }
+.pl-cip-probehlo,     .pl-nat-probehlo     { --pl-cip: #8a949a; }
+.pl-cip-zruseno,      .pl-nat-zruseno      { --pl-cip: #e5604d; }
+
+/* ---------------------------------------------------------------------
+   HERO „Teď na stavbě“ — karta stejného jazyka jako „Příště“ u Návštěv
+   --------------------------------------------------------------------- */
+.pl-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid rgba(140, 198, 63, 0.28);
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(140, 198, 63, 0.14) 0%, rgba(140, 198, 63, 0) 55%),
+    var(--panel);
+  box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.6);
+}
+.pl-hero-stitek {
+  margin-bottom: -8px;
+  color: var(--akcent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pl-hero-hlava {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.pl-hero-text {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+/* Název je tlačítko (otevře detail), ale vypadá jako nadpis. */
+.pl-hero-nazev {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+button.pl-hero-nazev:hover {
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 234, 237, 0.4);
+  text-underline-offset: 3px;
+}
+button.pl-hero-nazev:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.pl-hero-nic {
+  color: var(--text-slaby);
+  font-weight: 500;
+  cursor: default;
+}
+.pl-hero-slovy {
+  margin-top: 4px;
+  color: var(--text-slaby);
+  font-size: 13px;
+}
+
+/* Velký odpočet k dalšímu milníku */
+.pl-odpocet {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+  text-align: right;
+}
+.pl-odpocet-cislo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pl-odpocet-cislo strong {
+  color: var(--akcent);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.pl-odpocet-jednotka {
+  color: var(--text-slaby);
+  font-size: 13px;
+  line-height: 1.2;
+}
+.pl-odpocet-do {
+  max-width: 300px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-slaby);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: right;
+  cursor: pointer;
+}
+.pl-odpocet-do:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pl-odpocet-do:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Segmentový ukazatel: jeden segment = jeden milník v pořadí. Segment je
+   jen 8 px vysoký, proto má neviditelné zvětšení klikací plochy (::before). */
+.pl-seg {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 8px;
+}
+.pl-seg-dil {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 3px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: transform 0.12s, filter 0.12s;
+}
+.pl-seg-dil::before {
+  content: "";
+  position: absolute;
+  inset: -10px 0;
+}
+.pl-seg-dil:hover {
+  transform: scaleY(1.75);
+  filter: brightness(1.25);
+}
+.pl-seg-dil:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 2px;
+}
+.pl-seg-dil.pl-stav-hotovo   { background: var(--akcent); }
+.pl-seg-dil.pl-stav-probiha  { background: var(--akcent); animation: pl-puls-seg 2.6s ease-in-out infinite; }
+.pl-seg-dil.pl-stav-posunuto { background: var(--varovani); }
+/* Po termínu přebíjí stav: oranžová, napůl průhledná, bez pulsu. */
+.pl-seg-dil.pl-po-terminu    { background: var(--varovani); opacity: 0.5; animation: none; }
+
+@keyframes pl-puls-seg {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.pl-hero-radek {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Žlutý řádek „⚠ … po termínu“ */
+.pl-varovani {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid rgba(224, 160, 32, 0.35);
+  border-left: 3px solid var(--varovani);
+  border-radius: 10px;
+  background: rgba(224, 160, 32, 0.08);
+}
+.pl-varovani-text {
+  color: var(--varovani);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pl-varovani .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------
+   ČASOVÝ PÁS
+   Pevná výška a absolutní pozice: osa je vodorovně v %, svisle ve
+   „řadách“ (roky nahoře, stavba, natáčení ve dvou řádcích, štítky dole).
+   --------------------------------------------------------------------- */
+.pl-pas-karta {
+  overflow: hidden;
+  border: 1px solid var(--linka);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.pl-pas-hlava {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--linka);
+}
+.pl-nadpis {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pl-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-slaby);
+  font-size: 12px;
+}
+.pl-legenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Ukázky značek v legendě — stejné barvy jako na pásu. */
+.pl-leg {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--pl-barva, var(--text-slaby));
+  border-radius: 50%;
+  background: var(--pl-barva, var(--text-slaby));
+}
+.pl-leg.pl-stav-probiha   { box-shadow: 0 0 0 3px rgba(140, 198, 63, 0.25); }
+.pl-leg.pl-stav-planovano { background: var(--panel); }
+.pl-leg.pl-po-terminu     { border-color: var(--varovani); background: rgba(224, 160, 32, 0.3); }
+.pl-leg.pl-leg-nat {
+  width: 9px;
+  height: 9px;
+  border-color: var(--text-slaby);
+  border-radius: 2px;
+  background: var(--text-slaby);
+  transform: rotate(45deg);
+}
+
+.pl-pas-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--linka) transparent;
+}
+.pl-pas {
+  position: relative;
+  min-width: 760px;
+  height: 196px;
+}
+/* Popisky řad v levém sloupci (pod ním je prázdný okraj osy). */
+.pl-rada-popisek {
+  position: absolute;
+  left: 16px;
+  color: var(--text-slaby);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: translateY(-50%);
+}
+.pl-rada-stavba   { top: 84px; }
+.pl-rada-natoceni { top: 132px; }
+
+/* Vlastní osa — vodorovné % se počítá uvnitř ní. */
+.pl-osa {
+  position: absolute;
+  top: 0;
+  right: 32px;
+  bottom: 0;
+  left: 84px;
+}
+
+/* Přelom roku: jemná svislá linka a letopočet nad osou */
+.pl-rok {
+  position: absolute;
+  top: 26px;
+  bottom: 36px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.pl-rok-popisek {
+  position: absolute;
+  top: -20px;
+  left: 6px;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+/* Drobné značky měsíců */
+.pl-mesic {
+  position: absolute;
+  top: 80px;
+  width: 1px;
+  height: 8px;
+  background: var(--linka);
+}
+.pl-osa-linka {
+  position: absolute;
+  top: 83px;
+  right: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--linka);
+}
+/* Uplynulá část osy (od zahájení po dnešek) */
+.pl-osa-uplynulo {
+  position: absolute;
+  top: 83px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(140, 198, 63, 0.15), rgba(140, 198, 63, 0.6));
+}
+
+/* Svislé ukazatele: Dnes (zelená), konec smlouvy (přerušovaná), předání */
+.pl-ukazatel {
+  position: absolute;
+  top: 26px;
+  bottom: 0;
+  z-index: 1;
+  width: 0;
+  pointer-events: none;
+}
+.pl-ukazatel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 36px;
+  left: -1px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--text-slaby);
+  opacity: 0.55;
+}
+.pl-ukazatel-stitek {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 9px;
+  border: 1px solid var(--linka);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text-slaby);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.pl-ukazatel-stitek b {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pl-ukazatel-stitek span {
+  font-variant-numeric: tabular-nums;
+}
+.pl-ukazatel-dnes::before {
+  background: var(--akcent);
+  opacity: 1;
+  box-shadow: 0 0 12px rgba(140, 198, 63, 0.5);
+}
+.pl-ukazatel-dnes .pl-ukazatel-stitek {
+  border-color: var(--akcent);
+  background: var(--akcent);
+  color: var(--pozadi);
+}
+.pl-ukazatel-dnes .pl-ukazatel-stitek span {
+  color: rgba(20, 22, 26, 0.72);
+}
+.pl-ukazatel-smlouva::before {
+  width: 0;
+  border-left: 2px dashed var(--text-slaby);
+  background: none;
+}
+/* Předání je na samém konci osy — štítek se k čáře přilepí zprava. */
+.pl-ukazatel-predani .pl-ukazatel-stitek {
+  right: -1px;
+  left: auto;
+  align-items: flex-end;
+  transform: none;
+}
+
+/* Úsek milníku, který trvá déle než den (měsíc, období) */
+.pl-usek {
+  position: absolute;
+  top: 80px;
+  z-index: 1;
+  min-width: 6px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--pl-barva, var(--text-slaby));
+  opacity: 0.3;
+}
+.pl-usek.pl-stav-hotovo,
+.pl-usek.pl-stav-probiha { opacity: 0.45; }
+.pl-usek.pl-po-terminu   { background: var(--varovani); opacity: 0.4; }
+
+/* Značky (tlačítka): 24×24 klikací plocha, samotný tvar je ::before,
+   tooltip je ::after z atributu data-tip (první řádek název, druhý termín). */
+.pl-znacka {
+  position: absolute;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.pl-znacka::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  transition: transform 0.14s;
+}
+.pl-znacka:focus-visible {
+  z-index: 6;
+  outline: 2px solid var(--akcent);
+  outline-offset: 0;
+}
+.pl-znacka:hover { z-index: 6; }
+
+.pl-znacka::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 10;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid var(--linka);
+  border-radius: 8px;
+  background: var(--panel-2);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  white-space: pre-line;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.12s, transform 0.12s;
+}
+.pl-znacka:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* Najetí myší jen na zařízeních, která hover opravdu mají (na dotyku by
+   tooltip po klepnutí zůstal viset nad otevřeným panelem). */
+@media (hover: hover) {
+  .pl-znacka:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+/* U okrajů se tooltip kotví k tečce a roste dovnitř pásu. */
+.pl-znacka.pl-tip-vlevo::after {
+  left: -4px;
+  transform: translateY(4px);
+}
+.pl-znacka.pl-tip-vpravo::after {
+  right: -4px;
+  left: auto;
+  transform: translateY(4px);
+}
+.pl-znacka.pl-tip-vlevo:focus-visible::after,
+.pl-znacka.pl-tip-vpravo:focus-visible::after {
+  transform: translateY(0);
+}
+@media (hover: hover) {
+  .pl-znacka.pl-tip-vlevo:hover::after,
+  .pl-znacka.pl-tip-vpravo:hover::after {
+    transform: translateY(0);
+  }
+}
+
+/* --- tečka milníku --- */
+.pl-bod { top: 84px; }
+.pl-bod::before {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--pl-barva, var(--text-slaby));
+  border-radius: 50%;
+  background: var(--pl-barva, var(--text-slaby));
+  box-shadow: 0 0 0 2px var(--panel);
+  color: var(--pozadi);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+.pl-bod:hover::before,
+.pl-bod:focus-visible::before { transform: translate(-50%, -50%) scale(1.35); }
+/* hotovo: větší plná tečka s ✓ */
+.pl-bod.pl-stav-hotovo::before {
+  content: "✓";
+  width: 15px;
+  height: 15px;
+}
+/* plánováno: prázdný kroužek */
+.pl-bod.pl-stav-planovano::before { background: var(--panel); }
+/* probíhá: plná tečka s pulzujícím prstencem */
+.pl-bod.pl-stav-probiha::before { animation: pl-prstenec 2.4s ease-out infinite; }
+/* po termínu: oranžový kroužek s průsvitnou výplní, bez pulsu */
+.pl-bod.pl-po-terminu::before {
+  border-color: var(--varovani);
+  background: rgba(224, 160, 32, 0.3);
+  animation: none;
+}
+
+@keyframes pl-prstenec {
+  0%       { box-shadow: 0 0 0 2px var(--panel), 0 0 0 2px rgba(140, 198, 63, 0.65); }
+  70%, 100% { box-shadow: 0 0 0 2px var(--panel), 0 0 0 11px rgba(140, 198, 63, 0); }
+}
+
+/* --- značka natáčení: kosočtverec pod osou ve dvou řadách --- */
+.pl-nat { top: 124px; }
+.pl-nat-rada-1 { top: 140px; }
+.pl-nat::before {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--pl-cip, var(--text-slaby));
+  border-radius: 2px;
+  background: var(--pl-cip, var(--text-slaby));
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.pl-nat:hover::before,
+.pl-nat:focus-visible::before { transform: translate(-50%, -50%) rotate(45deg) scale(1.4); }
+/* Orientační termín (měsíc, období) = prázdný kosočtverec */
+.pl-nat.pl-nat-orient::before { background: transparent; }
+
+/* ---------------------------------------------------------------------
+   TABULKA MILNÍKŮ
+   Sloupce: Termín | Milník | Natáčení | Kdy | Stav
+   --------------------------------------------------------------------- */
+.pl-tabulka {
+  --nv-sloupce: 56px minmax(0, 1fr) 132px 92px 128px;
+}
+@media (min-width: 720px) and (max-width: 979px) {
+  .pl-tabulka {
+    --nv-sloupce: 52px minmax(0, 1fr) 112px 80px 112px;
+  }
+}
+
+/* Název je dvouřádkový: název (+ bublina komentářů) a pod ním datum slovy. */
+.pl .nv-radek-nazev {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+.pl-nazev-radek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pl-nazev-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pl-nazev-radek .nv-bublina {
+  flex: none;
+}
+/* Datum přesně tak, jak ho napsal PORR (šedě, drobně) */
+.pl-slovy {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hotové řádky jsou ztlumené, při najetí/zaostření plná síla */
+.pl-radek.pl-stav-hotovo { opacity: 0.62; }
+.pl-radek.pl-stav-hotovo:hover,
+.pl-radek.pl-stav-hotovo:focus-visible { opacity: 1; }
+
+/* Lísteček: probíhá = zelený, po termínu = oranžový */
+.pl-radek.pl-stav-probiha .nv-dlazdice { border-color: rgba(140, 198, 63, 0.55); }
+.pl-radek.pl-stav-probiha .nv-dlazdice:not(.nv-dlazdice-orientacni) .nv-dlazdice-mesic {
+  background: rgba(140, 198, 63, 0.16);
+  color: var(--akcent);
+}
+.pl-radek.pl-stav-probiha .nv-dlazdice-orientacni .nv-dlazdice-mesic { color: var(--akcent); }
+.pl-radek.pl-po-terminu .nv-dlazdice { border-color: rgba(224, 160, 32, 0.6); }
+.pl-radek.pl-po-terminu .nv-dlazdice-mesic { color: var(--varovani); }
+
+/* Čipy navázaných návštěv */
+.pl-cipy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.pl-cipy-prazdne {
+  color: var(--text-slaby);
+  opacity: 0.6;
+}
+.pl-cip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 7px;
+  border: 1px solid var(--linka);
+  border-radius: 999px;
+  background: var(--pozadi);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.pl-cip:hover {
+  border-color: var(--pl-cip, var(--text-slaby));
+  background: var(--panel-2);
+}
+.pl-cip:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 2px;
+}
+.pl-cip-bod {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pl-cip, var(--text-slaby));
+}
+.pl-cip.pl-cip-zruseno {
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+
+/* Stav: tečka + slovo, u hotovo ✓, u probíhá pulzující tečka */
+.pl-stav-obal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.pl-stav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pl-barva, var(--text-slaby));
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.pl-stav::before {
+  content: "";
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pl-stav.pl-stav-hotovo::before {
+  content: "✓";
+  width: 12px;
+  height: auto;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+.pl-stav.pl-stav-planovano::before {
+  border: 1.5px solid currentColor;
+  background: none;
+}
+.pl-stav.pl-stav-probiha::before {
+  animation: pl-puls-tecka 1.8s ease-in-out infinite;
+}
+@keyframes pl-puls-tecka {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(140, 198, 63, 0.55); }
+  50%      { box-shadow: 0 0 0 4px rgba(140, 198, 63, 0); }
+}
+.pl-po-terminu-stitek {
+  color: var(--varovani);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Řádek „Dnes“ mezi minulostí a budoucností — tenká zelená linka se štítkem */
+.pl-dnes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--linka);
+  cursor: default;
+}
+.pl-dnes::before,
+.pl-dnes::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+.pl-dnes::before { background: linear-gradient(90deg, rgba(140, 198, 63, 0.1), rgba(140, 198, 63, 0.7)); }
+.pl-dnes::after  { background: linear-gradient(90deg, rgba(140, 198, 63, 0.7), rgba(140, 198, 63, 0.1)); }
+.pl-dnes-stitek {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid rgba(140, 198, 63, 0.55);
+  border-radius: 999px;
+  background: rgba(140, 198, 63, 0.12);
+  color: var(--akcent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.nv-skupina:last-child .pl-dnes:last-child { border-bottom: 0; }
+
+/* ---------------------------------------------------------------------
+   BOČNÍ PANEL — detail milníku a původní harmonogram
+   --------------------------------------------------------------------- */
+.pl-panel-datum {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.pl-panel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 8px;
+}
+.pl-panel-meta .nv-za {
+  font-size: 14px;
+}
+.pl-panel-varovani {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--varovani);
+  border-radius: 0 8px 8px 0;
+  background: rgba(224, 160, 32, 0.08);
+  color: var(--varovani);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pl-zpet {
+  margin: -4px 0 12px -4px;
+}
+
+/* Segmentový přepínač stavu: jeden klik = uloženo */
+.pl-prepinac {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 16px;
+  padding: 3px;
+  border: 1px solid var(--linka);
+  border-radius: 10px;
+  background: var(--pozadi);
+}
+.pl-prepinac-btn {
+  min-height: 40px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-slaby);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+.pl-prepinac-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+.pl-prepinac-btn:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 1px;
+}
+.pl-prepinac-btn.pl-aktivni {
+  background: var(--pl-barva, var(--text-slaby));
+  color: var(--pozadi);
+}
+
+.pl-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.pl-prazdno {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 13px;
+}
+.pl-podnadpis {
+  margin: 20px 0 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Navázaná natáčení jako klikací řádky */
+.pl-nat-seznam {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--linka);
+  border-radius: 12px;
+}
+.pl-nat-radek {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color 0.12s;
+}
+.pl-nat-radek + .pl-nat-radek {
+  border-top: 1px solid var(--linka);
+}
+.pl-nat-radek:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.pl-nat-radek:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: -2px;
+}
+.pl-nat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pl-nat-nazev {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pl-nat-meta {
+  color: var(--text-slaby);
+  font-size: 12px;
+}
+.pl-nat-stav {
+  color: var(--pl-cip, var(--text-slaby));
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* „Co natočíme“ — jen ke čtení, hotové přeškrtnuté */
+.pl-zabery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.pl-zaber {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pl-zaber-znak {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 1.5px solid var(--linka);
+  border-radius: 4px;
+  color: var(--akcent);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.pl-zaber-hotovy {
+  color: var(--text-slaby);
+}
+.pl-zaber-hotovy > span:last-child {
+  text-decoration: line-through;
+}
+.pl-zaber-hotovy .pl-zaber-znak {
+  border-color: var(--akcent);
+  background: rgba(140, 198, 63, 0.14);
+}
+
+/* Komentáře: souhrn <details> slouží jako nadpis sekce */
+.pl-sekce-komentare details.komentare {
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+}
+.pl-sekce-komentare details.komentare > summary {
+  min-height: 32px;
+  margin: 0 0 12px;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pl-sekce-komentare .komentar {
+  border-radius: 10px;
+  background: var(--pozadi);
+}
+.pl-sekce-komentare .komentar-formular textarea {
+  border-radius: 8px;
+  background: var(--pozadi);
+}
+
+/* Spodní akce panelu */
+.pl-panel-akce {
+  padding: 0;
+}
+.pl-panel-akce .btn-tiche {
+  margin-left: auto;
+}
+.pl-panel-akce .btn-tiche:hover {
+  color: #e5604d;
+}
+
+/* ---------------------------------------------------------------------
+   MOBIL (< 720 px) — tabulka se o sebe postará přes .nv-radek z Návštěv;
+   tady jen hero do sloupce, pás se vodorovně posouvá (min-width 760 px)
+   a pl-specifické buňky se přizpůsobí druhému řádku pod názvem.
+   --------------------------------------------------------------------- */
+@media (max-width: 719px) {
+  .pl-hero {
+    padding: 20px;
+  }
+  .pl-hero-hlava {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pl-odpocet {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .pl-odpocet-do {
+    max-width: none;
+    text-align: left;
+  }
+  .pl-varovani .btn {
+    flex: 1 1 100%;
+    min-height: 48px;
+  }
+
+  .pl-pas-hlava {
+    padding: 12px;
+  }
+
+  .pl-nazev-text,
+  .pl-slovy {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .pl-cipy-prazdne {
+    display: none;
+  }
+  .pl-cip {
+    padding: 5px 10px 5px 9px;
+  }
+  .pl-radek .nv-radek-meta > .pl-stav-obal {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .pl-dnes {
+    padding: 0 12px;
+  }
+  .pl-prepinac-btn {
+    min-height: 44px;
+  }
+  .pl-nat-radek {
+    min-height: 60px;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Omezený pohyb — vypnout pulsy a přechody
+   --------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .pl-seg-dil.pl-stav-probiha,
+  .pl-bod.pl-stav-probiha::before,
+  .pl-stav.pl-stav-probiha::before {
+    animation: none;
+  }
+  .pl-seg-dil,
+  .pl-znacka::before,
+  .pl-znacka::after,
+  .pl-cip,
+  .pl-prepinac-btn,
+  .pl-nat-radek {
+    transition: none;
+  }
+}
+
+/* =====================================================================
+   PŘEHLED — přestavba úvodní obrazovky (Franta 8. 10. 2026)
+   Vložit AŽ ZA blok NÁVŠTĚVY (sdílí jeho třídy .nv, .nv-dlazdice, .nv-stav-*,
+   .nv-za, .nv-cislo, .nv-pocet a tokeny). Vlastní třídy mají prefix ph-.
+   ===================================================================== */
+
+/* ---------- Základ ---------- */
+/* .nv.ph: dvě třídy, ať šířka přebije max-width: 960px z .nv bez ohledu na
+   pořadí v souboru. Přehled je širší, protože drží dvě kolony. */
+.nv.ph {
+  max-width: 1080px;
+}
+
+/* Chybová hláška a lístečky na mobilu mají z dřívějška vlastní spodní okraj;
+   v tomhle kořeni odstupy dělá gap. */
+.ph .chyba-hlaska,
+.ph .listecky-v-prehledu {
+  margin-bottom: 0;
+}
+
+/* Tlačítka-odkazy: .btn je psané pro <button>, u <a> je třeba zrušit podtržení. */
+.ph a.btn,
+.ph a.ph-karta-odkaz,
+.ph a.ph-potom-radek {
+  text-decoration: none;
+}
+
+.ph .btn {
+  white-space: nowrap;
+}
+
+/* ---------- Karta ---------- */
+.ph-karta {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--linka);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.ph-karta-hlava {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+  margin: 0 0 14px;
+}
+
+.ph-karta-nadpis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.ph-karta-odkaz {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.ph-karta-odkaz:hover {
+  color: var(--akcent);
+}
+.ph-karta-odkaz:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--akcent);
+  outline-offset: 3px;
+}
+
+.ph-prazdno {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 13px;
+}
+
+.ph-mini-nadpis {
+  margin: 0 0 8px;
+  color: var(--text-slaby);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+/* ---------- 1. Projekt ---------- */
+.ph-projekt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 48px;
+}
+
+.ph-projekt-info {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.ph-projekt-nazev {
+  margin: 0;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ph-projekt-pod {
+  margin: 2px 0 0;
+  color: var(--text-slaby);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ph-projekt-meta {
+  margin: 10px 0 0;
+  color: var(--text-slaby);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Časový pruh projektu */
+.ph-cas {
+  flex: 1 1 320px;
+  min-width: 260px;
+  max-width: 440px;
+}
+
+.ph-cas-hlava {
+  margin-bottom: 4px;
+}
+
+.ph-cas-mesic {
+  color: var(--text-slaby);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.ph-cas-mesic strong {
+  margin: 0 2px;
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ph-cas-osa {
+  position: relative;
+  height: 6px;
+  margin: 10px 0 12px;
+}
+
+/* Dráha má overflow:hidden kvůli zaoblení výplně; značky jsou její sourozenci,
+   aby mohly přesahovat nad i pod pruh. */
+.ph-cas-draha {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.ph-cas-vypln {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--akcent);
+}
+
+.ph-znacka {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  left: 0;
+  width: 2px;
+  margin-left: -1px;
+  pointer-events: none;
+}
+/* Konec smlouvy: přerušovaná čára. */
+.ph-znacka-smlouva {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(232, 234, 237, 0.7) 0,
+    rgba(232, 234, 237, 0.7) 3px,
+    transparent 3px,
+    transparent 5px
+  );
+}
+/* Předání: plná čára přesně na konci pruhu. */
+.ph-znacka-predani {
+  left: 100%;
+  margin-left: -2px;
+  border-radius: 1px;
+  background: rgba(232, 234, 237, 0.75);
+}
+
+.ph-cas-popis {
+  color: var(--text-slaby);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+/* ---------- 2. Pozornost ---------- */
+.ph-pozornost {
+  padding: 16px 20px 6px;
+  border-color: rgba(224, 160, 32, 0.32);
+  background:
+    linear-gradient(180deg, rgba(224, 160, 32, 0.07) 0%, rgba(224, 160, 32, 0) 70%),
+    var(--panel);
+  box-shadow: inset 3px 0 0 var(--varovani);
+}
+.ph-pozornost .ph-karta-hlava {
+  margin-bottom: 4px;
+}
+.ph-pozornost .ph-karta-nadpis {
+  color: var(--varovani);
+}
+.ph-pozornost .nv-pocet {
+  background: rgba(224, 160, 32, 0.2);
+  color: var(--varovani);
+}
+
+/* Jen informace (žádné varování): bez oranžové, ať karta nekřičí. */
+.ph-pozornost-klid {
+  border-color: var(--linka);
+  background: var(--panel);
+  box-shadow: none;
+}
+.ph-pozornost-klid .ph-karta-nadpis {
+  color: var(--text-slaby);
+}
+.ph-pozornost-klid .nv-pocet {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.ph-pozor-seznam {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ph-pozor-radek {
+  --ph-zav: var(--text-slaby);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 6px 0;
+}
+.ph-pozor-radek + .ph-pozor-radek {
+  border-top: 1px solid var(--linka);
+}
+.ph-zav-varovani { --ph-zav: var(--varovani); }
+.ph-zav-chyba    { --ph-zav: var(--chyba); }
+.ph-zav-info     { --ph-zav: var(--text-slaby); }
+
+.ph-pozor-tecka {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ph-zav);
+}
+
+.ph-pozor-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ph-pozor-text strong {
+  font-weight: 600;
+}
+.ph-pozor-pozn {
+  color: var(--text-slaby);
+  font-size: 12.5px;
+}
+
+.ph-pozor-akce {
+  flex: none;
+}
+
+/* Interní upozornění: delší text pod nadpisem, křížek vpravo nahoře. */
+.ph-pozor-radek-interni {
+  align-items: flex-start;
+  padding: 12px 0;
+}
+.ph-pozor-radek-interni .ph-pozor-tecka {
+  margin-top: 6px;
+}
+.ph-pozor-nadpis {
+  color: var(--text);
+  font-weight: 600;
+}
+.ph-pozor-popis {
+  margin: 4px 0 0;
+  color: var(--text-slaby);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ph-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--linka);
+  border-radius: 999px;
+  background: var(--pozadi);
+  color: var(--text-slaby);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.ph-zavrit {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -10px -8px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-slaby);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+.ph-zavrit:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.ph-zavrit:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: -2px;
+}
+
+/* Když nic nečeká: jediný tichý řádek bez rámečku. */
+.ph-pozornost-prazdno {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--text-slaby);
+  font-size: 13px;
+}
+.ph-ok {
+  color: var(--akcent);
+  font-weight: 700;
+}
+
+/* ---------- 3. Mřížka ---------- */
+.ph-mrizka {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+.ph-kolona {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Dvě kolony až od 1100 px okna: vlevo se odečítá 220px menu, takže při 980 px
+   by na obsah zbylo jen ~760 px a pravá kolona by byla stísněná. */
+@media (min-width: 1100px) {
+  .ph-mrizka {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  }
+}
+
+/* ---------- 3a. Příští návštěva ---------- */
+.ph-pristi {
+  border-color: rgba(140, 198, 63, 0.28);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(140, 198, 63, 0.14) 0%, rgba(140, 198, 63, 0) 55%),
+    var(--panel);
+  box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.6);
+}
+.ph-pristi .ph-karta-nadpis {
+  color: var(--akcent);
+}
+
+.ph-pristi-radek {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Velký lísteček: stejné markup jako v Návštěvách, jen zvětšený. */
+.ph-dlazdice-velka {
+  flex: none;
+  width: 64px;
+  height: 60px;
+  border-radius: 11px;
+}
+.ph-dlazdice-velka .nv-dlazdice-mesic {
+  padding: 5px 0 4px;
+  font-size: 11px;
+}
+.ph-dlazdice-velka .nv-dlazdice-den {
+  font-size: 24px;
+}
+.ph-dlazdice-velka.nv-dlazdice-orientacni .nv-dlazdice-mesic {
+  padding: 0;
+  font-size: 16px;
+}
+
+.ph-pristi-info {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.ph-pristi-nazev {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.ph-pristi-datum {
+  color: var(--text-slaby);
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.ph-pristi-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  color: var(--text-slaby);
+  font-size: 13px;
+}
+
+/* Velký odpočet */
+.ph-odpocet {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+.ph-odpocet-cislo {
+  color: var(--akcent);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ph-odpocet-jednotka {
+  color: var(--text-slaby);
+  font-size: 13px;
+  line-height: 1.2;
+}
+.ph-odpocet-minulost .ph-odpocet-cislo {
+  color: var(--text-slaby);
+}
+
+/* Co se natočí */
+.ph-pristi-blok {
+  margin-top: 20px;
+}
+.ph-toci {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ph-toci li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ph-toci li::before {
+  content: "";
+  position: absolute;
+  top: 0.55em;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--akcent);
+  opacity: 0.8;
+}
+.ph-toci .ph-hotovo {
+  color: var(--text-slaby);
+  text-decoration: line-through;
+}
+.ph-toci .ph-toci-dalsi {
+  color: var(--text-slaby);
+}
+.ph-toci .ph-toci-dalsi::before {
+  content: none;
+}
+
+.ph-pristi-drobne {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ph-pristi > .ph-pristi-drobne {
+  margin-top: 14px;
+}
+.ph-pristi-lide {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 14px;
+}
+
+.ph-pristi-akce {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+/* Potom: další návštěvy jako kompaktní klikací řádky */
+.ph-potom {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linka);
+}
+.ph-potom-seznam {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ph-potom-radek {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: var(--text);
+  transition: background-color 0.12s;
+}
+.ph-potom-radek:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.ph-potom-radek:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: -2px;
+}
+.ph-potom-nazev {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ph-potom-radek .nv-za {
+  flex: none;
+}
+
+/* Malý lísteček (řádky Potom) */
+.ph-dlazdice-mala {
+  flex: none;
+  width: 40px;
+  height: 38px;
+  border-radius: 8px;
+}
+.ph-dlazdice-mala .nv-dlazdice-mesic {
+  padding: 3px 0 2px;
+  font-size: 9px;
+}
+.ph-dlazdice-mala .nv-dlazdice-den {
+  font-size: 14px;
+}
+.ph-dlazdice-mala.nv-dlazdice-orientacni .nv-dlazdice-mesic {
+  padding: 0;
+  font-size: 11px;
+}
+
+/* ---------- 3b. Stavba ---------- */
+.ph-stavba-radek {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+}
+.ph-karta-hlava + .ph-stavba-radek {
+  padding-top: 0;
+}
+.ph-stavba-radek + .ph-stavba-radek {
+  border-top: 1px solid var(--linka);
+}
+.ph-stavba-stitek {
+  flex: none;
+  width: 48px;
+  padding-top: 2px;
+  color: var(--text-slaby);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.ph-stavba-telo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ph-stavba-nazev {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.ph-stavba-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 2px;
+  color: var(--text-slaby);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.ph-mil-stav-probiha {
+  color: var(--akcent);
+}
+.ph-mil-stav-hotovo {
+  color: var(--text-slaby);
+}
+.ph-stavba-za {
+  flex: none;
+  padding-top: 1px;
+  color: var(--text-slaby);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Segmentový ukazatel milníků */
+.ph-seg {
+  display: flex;
+  gap: 3px;
+  margin-top: 14px;
+}
+.ph-seg-dil {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.ph-seg-hotovo  { background: var(--akcent); }
+.ph-seg-probiha { background: rgba(140, 198, 63, 0.6); }
+.ph-seg-po      { background: var(--varovani); }
+
+.ph-seg-popis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 8px 0 0;
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ph-po-terminu {
+  color: var(--varovani);
+}
+
+/* ---------- 3c. Plnění rozsahu ---------- */
+.ph-rozsah-hlava {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+/* Prstenec: celkové procento. --ph-proc nastavuje JS jako číslo 0–100. */
+.ph-prstenec {
+  --ph-proc: 0;
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: conic-gradient(var(--akcent) 0%, var(--akcent) calc(var(--ph-proc) * 1%), rgba(255, 255, 255, 0.08) 0%);
+}
+.ph-prstenec::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--panel);
+}
+.ph-prstenec span {
+  position: relative;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.ph-rozsah-souhrn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ph-rozsah-souhrn strong {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.ph-rozsah-smlouva {
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ph-rozsah-radek {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(48px, 1fr) 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--linka);
+  font-size: 13px;
+}
+.ph-rozsah-popisek {
+  min-width: 0;
+  color: var(--text);
+  line-height: 1.3;
+}
+.ph-rozsah-pod {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-slaby);
+  font-size: 11.5px;
+}
+.ph-pruh {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.ph-pruh-vypln {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(140, 198, 63, 0.7);
+}
+.ph-rozsah-splneno .ph-pruh-vypln {
+  background: var(--akcent);
+}
+.ph-rozsah-cislo {
+  color: var(--text-slaby);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.ph-rozsah-splneno .ph-rozsah-cislo {
+  color: var(--akcent);
+  font-weight: 600;
+}
+.ph-rozsah-navic {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--linka);
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- 3d. Poslední aktivita ---------- */
+.ph-akt-seznam {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ph-akt-radek {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--linka);
+}
+.ph-akt-radek:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.ph-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--linka);
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--text-slaby);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.ph-akt-telo {
+  min-width: 0;
+}
+.ph-akt-meta {
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ph-akt-meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.ph-akt-druh {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.ph-akt-druh svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+.ph-akt-komentar { color: var(--akcent); }
+.ph-akt-zmena    { color: var(--text-slaby); }
+.ph-akt-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ph-akt-cas {
+  padding-top: 1px;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ph-akt-vic {
+  margin: 6px 0 -6px -4px;
+}
+
+/* ---------- Mobil ---------- */
+@media (max-width: 719px) {
+  .ph-karta {
+    padding: 16px;
+  }
+  .ph-pozornost {
+    padding: 14px 16px 4px;
+  }
+
+  .ph-projekt {
+    gap: 16px;
+  }
+  .ph-cas {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .ph-karta-odkaz {
+    min-height: 44px;
+    margin: -10px 0;
+  }
+
+  /* Řádek pozornosti: tečka + věta nahoře, tlačítko na celou šířku pod nimi. */
+  .ph-pozor-radek {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 0;
+  }
+  .ph-pozor-text {
+    flex: 1 1 calc(100% - 24px);
+  }
+  .ph-pozor-akce {
+    flex: 1 1 100%;
+  }
+  .ph-pozor-akce .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+  /* Interní upozornění zůstává na jednom řádku s křížkem. */
+  .ph-pozor-radek-interni {
+    flex-wrap: nowrap;
+  }
+  .ph-pozor-radek-interni .ph-pozor-text {
+    flex: 1 1 auto;
+  }
+  .ph-pozor-radek-interni .ph-pozor-akce {
+    flex: none;
+  }
+
+  .ph-pristi-radek {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .ph-pristi-info {
+    flex: 1 1 0;
+  }
+  /* Odpočet pod názvem, přes celou šířku, číslo vedle jednotky. */
+  .ph-odpocet {
+    flex: 1 1 100%;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 8px;
+    text-align: left;
+  }
+
+  .ph-pristi-akce .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+  .ph-pristi-akce .btn-primarni {
+    flex-basis: 100%;
+  }
+
+  .ph-stavba-stitek {
+    width: 44px;
+  }
+
+  .ph-rozsah-radek {
+    grid-template-columns: minmax(0, 1.2fr) minmax(40px, 1fr) 52px;
+    gap: 10px;
+  }
+
+  .ph-akt-vic {
+    min-height: 44px;
+  }
+}
+
+/* ---------- Omezený pohyb ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ph *,
+  .ph *::before,
+  .ph *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
