@@ -619,6 +619,9 @@
 
   function ziskejSekciZHashe() {
     var klic = rozlozHash().sekce;
+    // Sekce "Materiál pro Emauzy" se sloučila do Materiálů — staré odkazy
+    // (a proklik z mailu) musí dál fungovat.
+    if (klic === "emauzy") return "materialy";
     return PLATNE_SEKCE.indexOf(klic) !== -1 ? klic : "prehled";
   }
 
@@ -645,6 +648,20 @@
     // ale primo role. Admin z PORR ma prava.upravit vypnute, ale kdyby ho
     // nekdo povysil, na naklady se tim dostat nesmi.
     naklady: function () {
+      return !!(window.Auth && Auth.role === "superadmin");
+    },
+    // Plán stavby a Časosběr jsou naše pracovní podklady. Stavbařům z PORR
+    // a Metrostavu dělaly menu zbytečně složité (Franta 8. 10. 2026) — mají
+    // Přehled, Návštěvy, Materiály a Tým, plus lístečky v menu.
+    plan: function () {
+      return !!(window.Auth && (Auth.role === "superadmin" || App.jsemZaFD()));
+    },
+    casosber: function () {
+      return !!(window.Auth && (Auth.role === "superadmin" || App.jsemZaFD()));
+    },
+    // Koš je poslední místo před trvalou ztrátou dat a je v něm vidět i to,
+    // co někdo smazal omylem. Franta 8. 10. 2026: ať do něj vidí jen on.
+    kos: function () {
       return !!(window.Auth && Auth.role === "superadmin");
     }
   };
@@ -743,8 +760,24 @@
   function renderObsah(klic, presunFokus) {
     var kontejner = document.getElementById("obsah");
     if (!kontejner) return;
+    // Schovaná položka v navigaci nestačí — na sekci se dá jít i adresou.
+    // Kdo je z našeho týmu, se pozná až z dat o lidech; dokud nejsou načtená,
+    // nepřesměrovávat, jinak by Michala odkaz na Plán hodil na Přehled.
+    var lideNacteni = typeof App.polozky === "function" && App.polozky("lide").length > 0;
+    if (lideNacteni && !maPravoNaSekci(klic)) {
+      klic = "prehled";
+      if (location.hash.replace("#", "").split("/")[0] !== "prehled") {
+        location.hash = "#prehled";
+        return;
+      }
+    }
     while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
     zobrazVystrahu(klic);
+    if (window.Listecky && typeof Listecky.prekresli === "function") {
+      try { Listecky.prekresli(); } catch (chybaListecku) {
+        console.error("Lístečky se nepodařilo vykreslit:", chybaListecku);
+      }
+    }
     var fn = App._registrovaneSekce && App._registrovaneSekce[klic];
     if (typeof fn === "function") {
       try {

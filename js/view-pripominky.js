@@ -32,7 +32,10 @@
  * než tvářit se, že to uloží, a použitelnější než nic. Až bude potřeba, aby
  * psali přímo, stačí jim změnit roli přes scripts/nastav_pristup.py --pridej.
  *
- * Nevystavuje žádný globální objekt — registruje se jako sekce "pripominky".
+ * Registruje se jako sekce "pripominky". Kromě toho vystavuje jediný globál,
+ * window.Listecky (dole v souboru): otevřené připomínky jako papírové
+ * lístečky přímo v levém menu (#listecky) a na začátku Přehledu — bez
+ * proklikávání do sekce.
  */
 
 (function () {
@@ -988,6 +991,619 @@
       return p.stav === "nova" || p.stav === "resi-se";
     });
   }
+
+  // ==========================================================================
+  // LÍSTEČKY — otevřené připomínky jako papírové lístečky v levém menu
+  //
+  // Stejná data a stejné zápisové funkce (uloz, ulozOdpoved, zmenStav) jako
+  // sekce výše; tady jen jednodušší, rychlejší obličej. Tabule se kreslí na dvě
+  // místa: do #listecky v menu (počítač) a přes vlozDo na začátek Přehledu
+  // (mobil, kde se menu-verze skrývá CSS). Obě místa sdílí jeden stav.
+  //
+  // STAV MEZI PŘEKRESLENÍMI: App volá Listecky.prekresli() při každém vykreslení
+  // sekce a po každé změně dat (a data se sama obnovují ~25 s). Proto:
+  //  - co je rozbalené, otevřený formulář, rozepsané texty a označení lidí
+  //    žijí v proměnné `lst` (modul), ne v DOM — nový DOM se z ní postaví znovu;
+  //  - nepřekresluje se, když se nic nezměnilo (podpis dat), když v tabuli
+  //    někdo píše (fokus v textarea/input/select) a když má označený text;
+  //  - po překreslení se vrátí fokus na stejný prvek (data-fk).
+  // ==========================================================================
+
+  var LISTECKY_MAX_OTEVRENYCH = 25;
+  var LISTECKY_MAX_VYRIZENYCH = 15;
+  var LISTECEK_NAZEV_MAX = 60;
+  var LISTECEK_TEXT_MAX = 1500;
+
+  var lst = {
+    rozbaleny: null,   // id rozbaleného lístečku (smí být jen jeden)
+    novy: false,       // je otevřený formulář nového lístečku?
+    novyText: "",      // rozepsaný text nového lístečku
+    novyVyber: { zminky: [], otevreno: undefined },
+    odpovedi: {},      // id lístečku -> { text, vyber: { zminky, otevreno } }
+    vyrizene: false,   // zobrazit vyřízené?
+    uklada: false      // běží zápis — proti dvojitému odeslání
+  };
+
+  var listeckyInstance = []; // { koren, host, nav, odpojeno, podpis }
+
+  // ---- pomocné ----
+
+  function lisKrestni(osobaId) {
+    var jmeno = String(App.jmenoOsoby(osobaId) || "").replace(/^\s+/, "");
+    var konec = jmeno.search(/\s/);
+    return (konec === -1 ? jmeno : jmeno.slice(0, konec)) || "—";
+  }
+
+  function lisPocetOdpovedi(n) {
+    if (n === 1) return "1 odpověď";
+    if (n >= 2 && n <= 4) return n + " odpovědi";
+    return n + " odpovědí";
+  }
+
+  function lisJeVyrizena(p) {
+    return p.stav === "hotovo" || p.stav === "zamitnuto";
+  }
+
+  // Barva a natočení se berou z čísla připomínky, ne z pořadí v seznamu —
+  // jinak by lístečky při každém novém přeskakovaly mezi barvami.
+  function lisCislo(p) {
+    if (typeof p.cislo === "number") return Math.abs(p.cislo);
+    var s = String(p.id || ""), h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973;
+    return h;
+  }
+
+  function lisTridy(p, vyrizena, otevreny) {
+    var n = lisCislo(p);
+    return "listecek listecek-b" + (n % 3) + " listecek-r" + (n % 2) +
+      (otevreny ? " listecek-otevreny" : "") +
+      (vyrizena ? " listecek-vyrizeny" : "");
+  }
+
+  function lisNejnovejsiNahore(a, b) {
+    var ka = String(a.kdy || ""), kb = String(b.kdy || "");
+    if (ka !== kb) return ka < kb ? 1 : -1;
+    return (b.cislo || 0) - (a.cislo || 0);
+  }
+
+  function lisData() {
+    var vse;
+    try { vse = polozky(); } catch (e) { vse = []; }
+    var otevrene = [], vyrizene = [];
+    vse.forEach(function (p) {
+      if (!p || !p.id) return;
+      (lisJeVyrizena(p) ? vyrizene : otevrene).push(p);
+    });
+    otevrene.sort(lisNejnovejsiNahore);
+    vyrizene.sort(function (a, b) {
+      var ka = String(a.vyreseno_kdy || a.kdy || ""), kb = String(b.vyreseno_kdy || b.kdy || "");
+      return ka < kb ? 1 : (ka > kb ? -1 : 0);
+    });
+    return { otevrene: otevrene, vyrizene: vyrizene };
+  }
+
+  function lisNajdi(id) {
+    var vse = polozky();
+    for (var i = 0; i < vse.length; i++) if (vse[i].id === id) return vse[i];
+    return null;
+  }
+
+  // Podpis všeho, co se na tabuli zobrazuje z dat. Když se mezi dvěma
+  // překresleními nezměnil, DOM se nechá být (zachová výběr, hover, scroll).
+  function lisPodpis(d) {
+    var radky = [];
+    d.otevrene.concat(d.vyrizene).forEach(function (p) {
+      radky.push([p.id, p.stav, p.nazev, p.popis, p.kdo, p.kdy, p.odpoved,
+        odpovediZaznamu(p).map(function (o) { return o.id; }).join(",")]);
+    });
+    return JSON.stringify([radky, smiPsat(), smiResit(), mojeOsobaId(),
+      lst.rozbaleny, lst.novy, lst.vyrizene, lst.uklada]);
+  }
+
+  // První řádek textu = nadpis (max 60 znaků, delší se ořízne a dá se „…“,
+  // zbytek řádku jde do popisu), zbytek textu = popis.
+  function lisRozdelText(text) {
+    var t = String(text).replace(/\r\n?/g, "\n").replace(/^\s+|\s+$/g, "");
+    var zlom = t.indexOf("\n");
+    var prvni = (zlom === -1 ? t : t.slice(0, zlom)).replace(/\s+$/, "");
+    var zbytek = zlom === -1 ? "" : t.slice(zlom + 1);
+    if (prvni.length > LISTECEK_NAZEV_MAX) {
+      var rez = prvni.slice(0, LISTECEK_NAZEV_MAX - 1);
+      var mezera = rez.lastIndexOf(" ");
+      if (mezera >= 30) rez = rez.slice(0, mezera);
+      var zbytekRadku = prvni.slice(rez.length).replace(/^\s+/, "");
+      zbytek = zbytekRadku + (zbytekRadku && zbytek ? "\n" : "") + zbytek;
+      prvni = rez.replace(/\s+$/, "") + "…";
+    }
+    return { nazev: prvni, popis: zbytek.replace(/^\s+|\s+$/g, "") };
+  }
+
+  function lisTlacitko(text, tridy, fk) {
+    var b = App.el("button", tridy, text);
+    b.type = "button";
+    if (fk) b.setAttribute("data-fk", fk);
+    return b;
+  }
+
+  function lisStavOdpovedi(id) {
+    if (!lst.odpovedi[id]) {
+      lst.odpovedi[id] = { text: "", vyber: { zminky: [], otevreno: undefined } };
+    }
+    return lst.odpovedi[id];
+  }
+
+  // Výběr lidí k označení (Util.vyberZminek) se stavem v proměnné modulu:
+  // zaškrtnutí i otevřenost si pamatuje `sv`, po překreslení se znovu nastaví.
+  function lisVyber(sv) {
+    var v = Util.vyberZminek({
+      vynech: mojeOsobaId(),
+      vybrane: (sv.zminky || []).slice(),
+      otevreno: sv.otevreno,
+      veta: "Upozornit e-mailem"
+    });
+    var obal = App.el("div", "listecek-vyber");
+    obal.appendChild(v.prvek);
+    obal.addEventListener("change", function () { sv.zminky = v.vybrane(); });
+    obal.addEventListener("toggle", function (e) {
+      if (e.target && e.target.tagName === "DETAILS") sv.otevreno = e.target.open;
+    }, true);
+    return { prvek: obal, vybrane: v.vybrane };
+  }
+
+  function lisMeta(p, vyrizena, tag) {
+    var casti = [];
+    if (vyrizena) casti.push(popisStavu(p.stav).nazev);
+    casti.push(lisKrestni(p.kdo));
+    if (p.kdy) casti.push(Util.formatCas(p.kdy));
+    var n = odpovediZaznamu(p).length;
+    if (n) casti.push(lisPocetOdpovedi(n));
+    return App.el(tag || "span", "listecek-meta", casti.join(" · "));
+  }
+
+  function lisNastavTextarea(ta, fk, popisek, radku, stavovyObjekt, klic) {
+    ta.className = "listecek-textarea";
+    ta.rows = radku;
+    ta.placeholder = popisek;
+    ta.setAttribute("aria-label", popisek);
+    ta.maxLength = LISTECEK_TEXT_MAX;
+    ta.setAttribute("data-fk", fk);
+    ta.value = stavovyObjekt[klic] || "";
+    ta.addEventListener("input", function () { stavovyObjekt[klic] = ta.value; });
+  }
+
+  // ---- zápis ----
+
+  function lisOdesliNovy(inst, ta, v) {
+    if (lst.uklada) return;
+    var text = String(ta.value || "").replace(/^\s+|\s+$/g, "");
+    if (!text) {
+      App.toast("Napište, co potřebujete.", "info");
+      try { ta.focus(); } catch (e) { /* nic */ }
+      return;
+    }
+    var casti = lisRozdelText(text);
+    var zminky = v.vybrane();
+    lst.novyText = ta.value;
+    lst.uklada = true;
+    lisObnovVse(inst); // zamkne tlačítka
+
+    function konec(ok) {
+      lst.uklada = false;
+      if (ok) {
+        lst.novy = false;
+        lst.novyText = "";
+        lst.novyVyber = { zminky: [], otevreno: undefined };
+      }
+      lisObnovVse(inst, ok ? "pridat-listecek" : undefined);
+    }
+    // uloz() si úspěch i chybu odtoastuje samo
+    uloz(true, null, {
+      druh: "dotaz",
+      nazev: casti.nazev,
+      popis: casti.popis,
+      kde: "",
+      zavaznost: "bezna",
+      zminky: zminky
+    }).then(konec, function () { konec(false); });
+  }
+
+  // Odešle rozepsanou odpověď (když nějaká je). Vrací Promise<true|false>;
+  // prázdný koncept se počítá za úspěch. Koncept se z paměti vyhodí hned,
+  // aby se po překreslení neukazoval dvakrát, a při chybě se vrátí.
+  function lisPosliKoncept(p, ta, v) {
+    var text = ta ? String(ta.value || "").replace(/^\s+|\s+$/g, "") : "";
+    if (!text) return Promise.resolve(true);
+    var d = lisStavOdpovedi(p.id);
+    var zaloha = { text: ta.value, vyber: d.vyber };
+    var zminky = v ? v.vybrane() : [];
+    delete lst.odpovedi[p.id];
+    function vrat() {
+      var akt = lst.odpovedi[p.id];
+      if (!akt || !akt.text) lst.odpovedi[p.id] = zaloha;
+    }
+    return ulozOdpoved(p, { text: text, zminky: zminky }).then(function (ok) {
+      if (!ok) vrat();
+      return !!ok;
+    }, function () {
+      vrat();
+      return false;
+    });
+  }
+
+  function lisOdesliOdpoved(inst, p, ta, v) {
+    if (lst.uklada) return;
+    if (!String(ta.value || "").replace(/^\s+|\s+$/g, "")) {
+      App.toast("Napište odpověď.", "info");
+      try { ta.focus(); } catch (e) { /* nic */ }
+      return;
+    }
+    lst.uklada = true;
+    var slib = lisPosliKoncept(p, ta, v); // ulozOdpoved si toastuje sám
+    lisObnovVse(inst);
+    function konec() {
+      lst.uklada = false;
+      lisObnovVse(inst);
+    }
+    slib.then(konec, konec);
+  }
+
+  // „Vyřízeno": rozepsaná odpověď (je-li) se pošle jako první, až potom se
+  // lísteček uzavře — ať se napsaný text neztratí.
+  function lisVyres(inst, p, ta, v) {
+    if (lst.uklada) return;
+    lst.uklada = true;
+    var krok = lisPosliKoncept(p, ta, v);
+    lisObnovVse(inst);
+    function konec(hotovo) {
+      lst.uklada = false;
+      if (hotovo) {
+        if (lst.rozbaleny === p.id) lst.rozbaleny = null;
+        delete lst.odpovedi[p.id];
+        App.toast("Lísteček vyřízen.", "ok");
+      }
+      lisObnovVse(inst, hotovo ? "pridat-listecek" : undefined);
+    }
+    krok.then(function (ok) {
+      if (!ok) return false;
+      // zmenStav chyby toastuje a polyká, proto se výsledek ověřuje v datech
+      return zmenStav(p, "hotovo").then(function () {
+        var po = lisNajdi(p.id);
+        return !!(po && po.stav === "hotovo");
+      });
+    }).then(konec, function () { konec(false); });
+  }
+
+  // ---- vykreslení ----
+
+  function lisHlavicka(inst) {
+    var hlavicka = App.el("div", "listecky-hlavicka");
+    var nadpis = App.el("p", "listecky-nadpis", "Lístečky");
+    nadpis.setAttribute("role", "heading");
+    nadpis.setAttribute("aria-level", "2");
+    hlavicka.appendChild(nadpis);
+    if (smiPsat()) {
+      var btn = lisTlacitko("+ Lísteček", "btn btn-mala btn-primarni listecky-pridat", "pridat-listecek");
+      btn.setAttribute("aria-expanded", lst.novy ? "true" : "false");
+      btn.addEventListener("click", function () {
+        lst.novy = true;
+        lisObnovVse(inst, "novy-text");
+      });
+      hlavicka.appendChild(btn);
+    }
+    return hlavicka;
+  }
+
+  function lisFormularNovy(inst) {
+    var obal = App.el("div", "listecek listecek-b0 listecek-r0 listecek-novy");
+    var ta = document.createElement("textarea");
+    lisNastavTextarea(ta, "novy-text", "Co potřebujete?", 4, lst, "novyText");
+    obal.appendChild(ta);
+
+    var v = lisVyber(lst.novyVyber);
+    obal.appendChild(v.prvek);
+
+    ta.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13)) {
+        e.preventDefault();
+        lisOdesliNovy(inst, ta, v);
+      }
+    });
+
+    var radek = App.el("div", "listecek-tlacitka");
+    var btnPridat = lisTlacitko(lst.uklada ? "Lepím…" : "Přilepit", "btn btn-mala btn-primarni", "prilepit");
+    btnPridat.disabled = lst.uklada;
+    btnPridat.addEventListener("click", function () { lisOdesliNovy(inst, ta, v); });
+    radek.appendChild(btnPridat);
+
+    var btnZrusit = lisTlacitko("Zrušit", "btn btn-mala btn-tiche", "zrusit");
+    btnZrusit.disabled = lst.uklada;
+    btnZrusit.addEventListener("click", function () {
+      lst.novy = false;
+      lst.novyText = "";
+      lst.novyVyber = { zminky: [], otevreno: undefined };
+      lisObnovVse(inst, "pridat-listecek");
+    });
+    radek.appendChild(btnZrusit);
+    obal.appendChild(radek);
+    return obal;
+  }
+
+  // Zavřený lísteček = jedno velké tlačítko (Enter i mezerník fungují samy).
+  function lisKartaZavrena(inst, p, vyrizena) {
+    var li = App.el("li", lisTridy(p, vyrizena, false));
+    var btn = App.el("button", "listecek-telo");
+    btn.type = "button";
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("data-fk", "karta:" + p.id);
+
+    var text = App.el("span", "listecek-text");
+    text.appendChild(App.el("strong", "listecek-nazev", p.nazev || "(bez názvu)"));
+    if (p.popis) {
+      text.appendChild(document.createElement("br"));
+      text.appendChild(App.el("span", "listecek-popis", p.popis));
+    }
+    btn.appendChild(text);
+    btn.appendChild(lisMeta(p, vyrizena, "span"));
+
+    btn.addEventListener("click", function () {
+      lst.rozbaleny = p.id;
+      lisObnovVse(inst, "karta:" + p.id);
+    });
+    li.appendChild(btn);
+    return li;
+  }
+
+  // Rozbalený lísteček: celý text, vlákno odpovědí, odpovídání, tlačítka.
+  // Vyřízený (zašedlý) se dá jen přečíst.
+  function lisKartaOtevrena(inst, p, vyrizena) {
+    var li = App.el("li", lisTridy(p, vyrizena, true));
+    var obsah = App.el("div", "listecek-obsah");
+    obsah.tabIndex = -1;
+    obsah.setAttribute("role", "group");
+    obsah.setAttribute("aria-label", "Lísteček: " + (p.nazev || "bez názvu"));
+    obsah.setAttribute("data-fk", "karta:" + p.id);
+
+    obsah.appendChild(App.el("p", "listecek-nazev-plny", p.nazev || "(bez názvu)"));
+    if (p.popis) obsah.appendChild(App.el("p", "listecek-popis-plny", p.popis));
+    if (vyrizena && p.odpoved) {
+      obsah.appendChild(App.el("p", "listecek-vyrizeni", "Vyřízení: " + p.odpoved));
+    }
+    obsah.appendChild(lisMeta(p, vyrizena, "p"));
+
+    var vlakno = vlaknoOdpovedi(p);
+    if (vlakno) obsah.appendChild(vlakno);
+
+    var ta = null;
+    var v = null;
+    if (!vyrizena && smiPsat()) {
+      var d = lisStavOdpovedi(p.id);
+      ta = document.createElement("textarea");
+      lisNastavTextarea(ta, "odp-text:" + p.id, "Odpovědět…", 3, d, "text");
+      ta.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13)) {
+          e.preventDefault();
+          lisOdesliOdpoved(inst, p, ta, v);
+        }
+      });
+      obsah.appendChild(ta);
+      v = lisVyber(d.vyber);
+      obsah.appendChild(v.prvek);
+    }
+
+    var radek = App.el("div", "listecek-tlacitka");
+    if (ta) {
+      var btnOdp = lisTlacitko(lst.uklada ? "Posílám…" : "Odpovědět", "btn btn-mala btn-primarni", "odpovedet:" + p.id);
+      btnOdp.disabled = lst.uklada;
+      btnOdp.addEventListener("click", function () { lisOdesliOdpoved(inst, p, ta, v); });
+      radek.appendChild(btnOdp);
+    }
+    if (!vyrizena && smiResit()) {
+      var btnHotovo = lisTlacitko("Vyřízeno", "btn btn-mala btn-sekundarni", "vyrizeno:" + p.id);
+      btnHotovo.disabled = lst.uklada;
+      btnHotovo.addEventListener("click", function () { lisVyres(inst, p, ta, v); });
+      radek.appendChild(btnHotovo);
+    }
+    var btnZavrit = lisTlacitko("Zavřít", "btn btn-mala btn-tiche", "zavrit:" + p.id);
+    btnZavrit.addEventListener("click", function () {
+      lst.rozbaleny = null;
+      lisObnovVse(inst, "karta:" + p.id);
+    });
+    radek.appendChild(btnZavrit);
+    obsah.appendChild(radek);
+
+    li.appendChild(obsah);
+    return li;
+  }
+
+  function lisSeznam(inst, pole, max, vyrizena) {
+    var ul = App.el("ul", "listecky-seznam" + (vyrizena ? " listecky-seznam-vyrizene" : ""));
+    ul.setAttribute("role", "list");
+    var zobrazeno = 0;
+    pole.forEach(function (p, i) {
+      var rozbaleny = p.id === lst.rozbaleny;
+      if (i >= max && !rozbaleny) return;
+      zobrazeno++;
+      ul.appendChild(rozbaleny ? lisKartaOtevrena(inst, p, vyrizena) : lisKartaZavrena(inst, p, vyrizena));
+    });
+    return { ul: ul, schovano: pole.length - zobrazeno };
+  }
+
+  function lisOdkazDalsi(kolik) {
+    var a = App.el("a", "listecky-dalsi", "Dalších " + kolik + " v Připomínkách");
+    a.href = "#pripominky";
+    return a;
+  }
+
+  function lisSestav(inst, d) {
+    // Úklid stavu: rozbalený lísteček, který už není vidět, se sbalí;
+    // prázdné koncepty odpovědí k zaniklým lístečkům se zahodí.
+    var ids = {}, idsVyrizene = {};
+    d.otevrene.forEach(function (p) { ids[p.id] = true; });
+    d.vyrizene.forEach(function (p) { ids[p.id] = true; idsVyrizene[p.id] = true; });
+    if (lst.rozbaleny && (!ids[lst.rozbaleny] || (idsVyrizene[lst.rozbaleny] && !lst.vyrizene))) {
+      lst.rozbaleny = null;
+    }
+    Object.keys(lst.odpovedi).forEach(function (k) {
+      if (!ids[k] && !lst.odpovedi[k].text) delete lst.odpovedi[k];
+    });
+
+    var frag = document.createDocumentFragment();
+    frag.appendChild(lisHlavicka(inst));
+
+    var smiNovy = lst.novy && smiPsat();
+    if (smiNovy) {
+      var novyObal = App.el("div", "listecky-novy-obal");
+      novyObal.appendChild(lisFormularNovy(inst));
+      frag.appendChild(novyObal);
+    }
+
+    if (d.otevrene.length) {
+      var otevrene = lisSeznam(inst, d.otevrene, LISTECKY_MAX_OTEVRENYCH, false);
+      frag.appendChild(otevrene.ul);
+      if (otevrene.schovano > 0) frag.appendChild(lisOdkazDalsi(otevrene.schovano));
+    } else if (!smiNovy) {
+      frag.appendChild(App.el("p", "listecky-prazdno", "Zatím žádný lísteček."));
+    }
+
+    if (d.vyrizene.length) {
+      var prepinac = lisTlacitko("Vyřízené (" + d.vyrizene.length + ")", "listecky-prepinac", "vyrizene");
+      prepinac.setAttribute("aria-expanded", lst.vyrizene ? "true" : "false");
+      prepinac.addEventListener("click", function () {
+        lst.vyrizene = !lst.vyrizene;
+        lisObnovVse(inst, "vyrizene");
+      });
+      frag.appendChild(prepinac);
+      if (lst.vyrizene) {
+        var vyrizene = lisSeznam(inst, d.vyrizene, LISTECKY_MAX_VYRIZENYCH, true);
+        frag.appendChild(vyrizene.ul);
+        if (vyrizene.schovano > 0) frag.appendChild(lisOdkazDalsi(vyrizene.schovano));
+      }
+    }
+    return frag;
+  }
+
+  // Někdo právě píše nebo má označený text — DOM pod rukama neměnit.
+  function lisZaneprazdnena(koren) {
+    var a = document.activeElement;
+    if (a && a !== document.body && koren.contains(a)) {
+      var t = a.tagName;
+      if (t === "TEXTAREA" || t === "INPUT" || t === "SELECT") return true;
+    }
+    var vyber = window.getSelection ? window.getSelection() : null;
+    if (vyber && !vyber.isCollapsed && vyber.anchorNode && koren.contains(vyber.anchorNode)) {
+      return true;
+    }
+    return false;
+  }
+
+  function lisVykresli(inst, volby) {
+    volby = volby || {};
+    var koren = inst.koren;
+    var d = lisData();
+    var podpis = lisPodpis(d);
+
+    if (!volby.vynutit) {
+      if (inst.podpis === podpis && koren.firstChild) return;
+      if (lisZaneprazdnena(koren)) return; // podpis se nezapíše, příště to dožene
+    }
+
+    // Kam se má po překreslení vrátit fokus.
+    var fk = null;
+    var a = document.activeElement;
+    if (a && a !== document.body && koren.contains(a)) fk = a.getAttribute("data-fk");
+    if (volby.fokus) fk = volby.fokus;
+
+    var obsah = lisSestav(inst, d);
+    inst.podpis = podpis;
+    while (koren.firstChild) koren.removeChild(koren.firstChild);
+    koren.appendChild(obsah);
+
+    if (fk) {
+      var kandidati = koren.querySelectorAll("[data-fk]");
+      for (var i = 0; i < kandidati.length; i++) {
+        if (kandidati[i].getAttribute("data-fk") === fk) {
+          try { kandidati[i].focus({ preventScroll: !volby.fokus }); } catch (e) { /* nic */ }
+          break;
+        }
+      }
+    }
+  }
+
+  function lisJePripojen(el) {
+    return !!(el && document.documentElement.contains(el));
+  }
+
+  // Zahodí tabule, které zmizely z dokumentu (sekce se překreslila a vlozDo
+  // vyrobilo novou). Dvě překreslení odkladu pro případ, že kontejner je
+  // chvíli odpojený, než ho sekce přilepí.
+  function lisOcisti() {
+    listeckyInstance = listeckyInstance.filter(function (inst) {
+      if (lisJePripojen(inst.koren)) {
+        inst.odpojeno = 0;
+        return true;
+      }
+      inst.odpojeno++;
+      return inst.odpojeno <= 2;
+    });
+  }
+
+  function lisNovaInstance(host, nav) {
+    var koren = App.el("div", "listecky-tabule " + (nav ? "listecky-tabule-menu" : "listecky-tabule-vlozena"));
+    host.appendChild(koren);
+    var inst = { koren: koren, host: host, nav: nav, odpojeno: 0, podpis: null };
+    listeckyInstance.push(inst);
+    return inst;
+  }
+
+  // Změna z tabule: překreslí se všechna místa, ta, odkud změna přišla,
+  // natvrdo a s fokusem.
+  function lisObnovVse(zdroj, fokus) {
+    lisOcisti();
+    for (var i = 0; i < listeckyInstance.length; i++) {
+      var inst = listeckyInstance[i];
+      lisVykresli(inst, inst === zdroj ? { vynutit: true, fokus: fokus } : {});
+    }
+  }
+
+  function lisLog(chyba) {
+    if (window.console && console.error) console.error("Lístečky:", chyba);
+  }
+
+  function lisPrekresli() {
+    try {
+      var host = document.getElementById("listecky");
+      if (host) {
+        var mam = false;
+        for (var i = 0; i < listeckyInstance.length; i++) {
+          var x = listeckyInstance[i];
+          if (x.nav && x.host === host && x.koren.parentNode === host) mam = true;
+        }
+        if (!mam) lisNovaInstance(host, true);
+      }
+      lisOcisti();
+      for (var j = 0; j < listeckyInstance.length; j++) lisVykresli(listeckyInstance[j], {});
+    } catch (chyba) {
+      lisLog(chyba); // tabule nikdy nesmí shodit vykreslení sekce
+    }
+  }
+
+  function lisVlozDo(kontejner) {
+    if (!kontejner || typeof kontejner.appendChild !== "function") return;
+    try {
+      var inst = null;
+      for (var i = 0; i < listeckyInstance.length; i++) {
+        var x = listeckyInstance[i];
+        if (!x.nav && x.koren.parentNode === kontejner) inst = x;
+      }
+      if (!inst) inst = lisNovaInstance(kontejner, false);
+      lisOcisti();
+      lisVykresli(inst, {});
+    } catch (chyba) {
+      lisLog(chyba);
+    }
+  }
+
+  window.Listecky = { prekresli: lisPrekresli, vlozDo: lisVlozDo };
 
   App.registrujSekci("pripominky", vykresli);
 })();

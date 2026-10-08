@@ -107,6 +107,9 @@
  *                                                          mřížek; volá se na začátku
  *                                                          vykreslení sekce
  *   MaterialyUI.TYPY / MaterialyUI.STAVY               -> popisky typů a stavů (kód → text)
+ *   MaterialyUI.jednoduchyPohled()                     -> true pro lidi ze stavby (ne superadmin
+ *                                                          a ne osoba ze strany FD) — sekce jim
+ *                                                          schovává ovládání (od 8. 10. 2026)
  */
 
 (function () {
@@ -144,6 +147,26 @@
 
   function ziskejPolozky(soubor) {
     return App.polozky(soubor);
+  }
+
+  // Jednoduchý pohled pro lidi ze stavby (PORR, Metrostav). Franta 8. 10. 2026:
+  // stavba si materiály jen prohlíží, stahuje a komentuje (podle záznamů
+  // aktivity je nikdy nepřidávali ani neupravovali) a říkala, že je to pro ni
+  // moc složité. Náš tým (role superadmin nebo osoba ze strany FD) vidí sekci
+  // přesně jako dřív. Práva (Auth.can) se NEMĚNÍ — jednoduchý pohled jen navíc
+  // SCHOVÁVÁ ovládání, nic nepovoluje ani nezakazuje.
+  function jednoduchyPohled() {
+    return !(
+      window.Auth &&
+      (Auth.role === "superadmin" || (window.App && typeof App.jsemZaFD === "function" && App.jsemZaFD()))
+    );
+  }
+
+  // Stavba má vidět jen to, co je hotové nebo předané. Pracovní (syrový)
+  // materiál z natáčení — příznak `syrovy` i stav "syrove" — a rozpracované
+  // věci ("ve-zpracovani") se jí schovávají.
+  function jeHotoveProStavbu(m) {
+    return m.syrovy !== true && (m.stav === "hotovo" || m.stav === "predano");
   }
 
   function najdiPodleId(pole, id) {
@@ -1090,7 +1113,10 @@
     blok.appendChild(popisekStazeni);
     blok.appendChild(vytvorMyAirBridgeRadek(material));
 
-    if (Auth.can("materialy.upravit") || Auth.can("materialy.smazat")) {
+    // Jednoduchý pohled (stavba): tlačítka Upravit a Smazat se schovávají —
+    // lidé ze stavby materiály neupravují, jen si je prohlížejí, stahují
+    // a komentují (Franta 8. 10. 2026). Komentáře pod tím zůstávají.
+    if (!jednoduchyPohled() && (Auth.can("materialy.upravit") || Auth.can("materialy.smazat"))) {
       var akce = document.createElement("div");
       akce.className = "karta-akce";
       if (Auth.can("materialy.upravit")) {
@@ -1163,6 +1189,9 @@
 
   function vytvorSouhrnSyroveho(syrove, klicSkupiny) {
     if (!syrove.length) return null;
+    // Jednoduchý pohled (stavba): pracovní materiál z natáčení se nekreslí
+    // vůbec — stavba má vidět jen hotové a předané (Franta 8. 10. 2026).
+    if (jednoduchyPohled()) return null;
     var klic = klicSkupiny || "__vse__";
 
     var oddil = document.createElement("section");
@@ -2068,6 +2097,9 @@
   // ---------------------------------------------------------------------
 
   function projdeFiltrem(m) {
+    // Jednoduchý pohled (stavba): lišta filtrů se nekreslí, takže ani žádný
+    // zapamatovaný filtr nesmí nic tajně skrývat (Franta 8. 10. 2026).
+    if (jednoduchyPohled()) return true;
     if (filtrTyp !== "vse" && m.typ !== filtrTyp) return false;
     if (filtrStav !== "vse" && m.stav !== filtrStav) return false;
     return true;
@@ -2226,6 +2258,17 @@
     h2.textContent = "Materiály";
     oddil.appendChild(h2);
 
+    // Jednoduchý pohled (stavba): jen nadpis a jedna věta, co tu najdou.
+    // Žádný souhrn počtu a velikosti, žádné tlačítko Přidat materiál ani
+    // Nahrát fotky — stavba materiály nepřidává (Franta 8. 10. 2026).
+    if (jednoduchyPohled()) {
+      var uvod = document.createElement("p");
+      uvod.className = "podnadpis-sekce";
+      uvod.textContent = "Hotové fotky a videa ke stažení.";
+      oddil.appendChild(uvod);
+      return oddil;
+    }
+
     var soucetGb = 0;
     materialy.forEach(function (m) {
       var gb = Util.velikostNaGb(m.velikost);
@@ -2314,7 +2357,10 @@
     var vimeoBlok = vytvorVimeoBlok(m);
     if (vimeoBlok) karta.appendChild(vimeoBlok);
 
-    if (Auth.can("materialy.upravit") || Auth.can("materialy.smazat")) {
+    // Jednoduchý pohled (stavba): tlačítka Upravit a Smazat na kartě se
+    // schovávají — stavba materiály neupravuje, jen je stahuje, přehrává
+    // a komentuje (Franta 8. 10. 2026). Komentáře pod kartou zůstávají.
+    if (!jednoduchyPohled() && (Auth.can("materialy.upravit") || Auth.can("materialy.smazat"))) {
       var akce = document.createElement("div");
       akce.className = "karta-akce";
       if (Auth.can("materialy.upravit")) {
@@ -2353,13 +2399,19 @@
   // ---------------------------------------------------------------------
 
   function vytvorSkupinu(sk) {
-    var syrove = sk.materialy.filter(function (m) {
+    // Jednoduchý pohled (stavba): do skupiny se počítá a kreslí jen hotové
+    // a předané (stav "hotovo" / "predano", ne syrové). Filtr jde PŘED počty
+    // i prázdným stavem, takže souhrn skupiny sedí s tím, co je vidět, a když
+    // skupině nic nezbyde, vrátí se null a skupina se nekreslí (Franta
+    // 8. 10. 2026).
+    var materialySkupiny = jednoduchyPohled() ? sk.materialy.filter(jeHotoveProStavbu) : sk.materialy;
+    var syrove = materialySkupiny.filter(function (m) {
       return m.syrovy === true;
     });
-    var galerijni = sk.materialy.filter(function (m) {
+    var galerijni = materialySkupiny.filter(function (m) {
       return m.syrovy !== true && maGalerii(m);
     });
-    var karty = sk.materialy
+    var karty = materialySkupiny
       .filter(function (m) {
         return m.syrovy !== true && !maGalerii(m);
       })
@@ -2381,13 +2433,15 @@
     texty.appendChild(nadpis);
     var souhrn = document.createElement("p");
     souhrn.className = "skupina-navstevy-souhrn";
-    souhrn.textContent = souhrnSkupiny(sk.materialy);
+    souhrn.textContent = souhrnSkupiny(materialySkupiny);
     texty.appendChild(souhrn);
     hlava.appendChild(texty);
 
     // Nahrávat jde jen do konkrétní návštěvy — skupina "Nepatří k žádné
     // návštěvě" (a skupina po smazané návštěvě) tlačítko nedostane.
-    if (sk.navsteva && smiNahravat()) {
+    // Jednoduchý pohled (stavba): tlačítko Nahrát fotky se schovává, stavba
+    // fotky nenahrává (Franta 8. 10. 2026).
+    if (!jednoduchyPohled() && sk.navsteva && smiNahravat()) {
       var nahrat = document.createElement("button");
       nahrat.type = "button";
       nahrat.className = "btn btn-mala btn-sekundarni";
@@ -2447,22 +2501,31 @@
 
     while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
 
+    // Jednoduchý pohled (stavba): do skupin jde jen hotové a předané, ne
+    // pracovní materiál z natáčení (Franta 8. 10. 2026).
+    var zobrazeneMaterialy = jednoduchyPohled() ? vsechnyMaterialy.filter(jeHotoveProStavbu) : vsechnyMaterialy;
+
     kontejner.appendChild(vytvorHlavicku(vsechnyMaterialy, navstevy));
 
     // Filtry jdou nad skupiny, protože obsah je teď rozdělený po návštěvách.
     // Týkají se ale pořád jen karet (ne galerií, ne pracovního materiálu) —
     // je to pod nimi napsané, ať to není hádanka.
-    var filtryOddil = document.createElement("section");
-    filtryOddil.className = "oddil";
-    filtryOddil.appendChild(vytvorFiltry(kontejner));
-    var poznamkaFiltru = document.createElement("p");
-    poznamkaFiltru.className = "filtr-poznamka";
-    poznamkaFiltru.textContent =
-      "Filtr se týká seznamu materiálů — galerií náhledů ani pracovního materiálu se nedotýká.";
-    filtryOddil.appendChild(poznamkaFiltru);
-    kontejner.appendChild(filtryOddil);
+    // Jednoduchý pohled (stavba): lišta filtrů i věta pod ní se nekreslí —
+    // stavba má vidět jen hotové věci, nic k filtrování tu není (Franta
+    // 8. 10. 2026).
+    if (!jednoduchyPohled()) {
+      var filtryOddil = document.createElement("section");
+      filtryOddil.className = "oddil";
+      filtryOddil.appendChild(vytvorFiltry(kontejner));
+      var poznamkaFiltru = document.createElement("p");
+      poznamkaFiltru.className = "filtr-poznamka";
+      poznamkaFiltru.textContent =
+        "Filtr se týká seznamu materiálů — galerií náhledů ani pracovního materiálu se nedotýká.";
+      filtryOddil.appendChild(poznamkaFiltru);
+      kontejner.appendChild(filtryOddil);
+    }
 
-    var skupiny = seskupitPodleNavstevy(vsechnyMaterialy, navstevy);
+    var skupiny = seskupitPodleNavstevy(zobrazeneMaterialy, navstevy);
     var vykreslenych = 0;
     skupiny.forEach(function (sk) {
       var blok = vytvorSkupinu(sk);
@@ -2474,12 +2537,28 @@
     if (!vykreslenych) {
       var seznamOddil = document.createElement("section");
       seznamOddil.className = "oddil";
+      // Jednoduchý pohled (stavba): žádný filtr tu není, takže jediná věta
+      // "Zatím tu není nic hotového ke stažení." (Franta 8. 10. 2026).
       seznamOddil.appendChild(
         vytvorPrazdnyStav(
-          vsechnyMaterialy.length ? "Žádný materiál neodpovídá filtru." : "Zatím žádné materiály."
+          jednoduchyPohled()
+            ? "Zatím tu není nic hotového ke stažení."
+            : vsechnyMaterialy.length
+              ? "Žádný materiál neodpovídá filtru."
+              : "Zatím žádné materiály."
         )
       );
       kontejner.appendChild(seznamOddil);
+    }
+
+    // Materiál pro Emauzský klášter měl vlastní sekci, ale hledal se špatně —
+    // od 8. 10. 2026 visí na konci Materiálů. Je to pořád závazek MIMO smlouvu
+    // s PORR, proto zůstává ve vlastním bloku s vlastním vysvětlením a nemíchá
+    // se do skupin po návštěvách (ty filtrují `prijemce !== "Emauzy"`).
+    // Jednoduchý pohled (stavba): blok pro klášter se nevolá — je to náš
+    // závazek vůči klášteru, stavby se netýká (Franta 8. 10. 2026).
+    if (!jednoduchyPohled() && window.EmauzyUI && typeof EmauzyUI.vlozDo === "function") {
+      EmauzyUI.vlozDo(kontejner);
     }
   }
 
@@ -2500,7 +2579,9 @@
     // materiál pro klášter dostane pole `galerie` (resp. `nahledy`)
     maGalerii: maGalerii,
     galerie: vytvorGaleriiMaterialu,
-    zrusGalerie: zrusPozorovatele
+    zrusGalerie: zrusPozorovatele,
+    // jednoduchý pohled pro lidi ze stavby — používá i view-emauzy.js
+    jednoduchyPohled: jednoduchyPohled
   };
 
   App.registrujSekci("materialy", vykresli);

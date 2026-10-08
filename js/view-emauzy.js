@@ -187,6 +187,16 @@
     return !!(window.MaterialyUI && typeof MaterialyUI.maGalerii === "function" && MaterialyUI.maGalerii(m));
   }
 
+  // Jednoduchý pohled pro lidi ze stavby (funkci vystavuje view-materialy.js).
+  // Když se view-materialy.js nenačetl, vrací false = chování jako dosud.
+  function jeJednoduchyPohled() {
+    return !!(
+      window.MaterialyUI &&
+      typeof MaterialyUI.jednoduchyPohled === "function" &&
+      MaterialyUI.jednoduchyPohled()
+    );
+  }
+
   function vytvorSeznam(polozky) {
     var oddil = document.createElement("section");
     oddil.className = "oddil";
@@ -261,14 +271,37 @@
 
     while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
 
-    var polozky = materialyProEmauzy();
+    // Jednoduchý pohled (stavba): sekce se jim v menu neukazuje; kdyby se sem
+    // dostali přímým odkazem, nezůstane prázdná stránka, ale jedna věta
+    // a odkaz na Materiály (Franta 8. 10. 2026).
+    if (jeJednoduchyPohled()) {
+      var uvod = document.createElement("p");
+      uvod.className = "prazdny-stav-text";
+      uvod.textContent = "Tahle sekce je jen pro náš tým. Hotové fotky a videa najdete v Materiálech.";
+      kontejner.appendChild(uvod);
+      return;
+    }
+    vlozDo(kontejner);
+  }
 
+  // Materiál pro klášter se od 8. 10. 2026 vkládá na konec sekce Materiály
+  // (dvě sekce pro jednu věc se špatně hledaly). Proto vkládání, které
+  // kontejner NEMAŽE — sekce Materiály si do něj dávno něco nakreslila.
+  function vlozDo(kontejner) {
+    // Jednoduchý pohled (stavba): blok pro klášter se nekreslí — je to náš
+    // závazek vůči klášteru, stavby (PORR, Metrostav) se netýká. Pojistka
+    // pro případ, že by ho někdo zavolal i bez kontroly v sekci Materiály
+    // (Franta 8. 10. 2026).
+    if (jeJednoduchyPohled()) return;
+    var polozky = materialyProEmauzy();
     kontejner.appendChild(vytvorUvod());
     // pri nula polozkach by byl ukazatel "0 z 0" jen matouci — stav zavazku
     // se ukaze az kdyz je co pocitat, jinak mluvi prazdny stav v seznamu
     if (polozky.length) kontejner.appendChild(vytvorStavZavazku(polozky));
     kontejner.appendChild(vytvorSeznam(polozky));
   }
+
+  window.EmauzyUI = { vlozDo: vlozDo };
 
   App.registrujSekci("emauzy", vykresli);
 })();

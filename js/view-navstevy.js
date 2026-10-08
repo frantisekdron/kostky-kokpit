@@ -442,7 +442,7 @@
     var otevreno = !!shotOtevrene[n.id];
 
     var html = '<details class="navsteva-shot"' + (otevreno ? " open" : "") + ">";
-    html += '<summary class="navsteva-shot-souhrn"><span>Shot list</span>' +
+    html += '<summary class="navsteva-shot-souhrn"><span>Co se natočí</span>' +
       '<span class="navsteva-shot-pocet">' + hotovo + " / " + polozky.length + "</span></summary>";
 
     if (!polozky.length) {
@@ -468,9 +468,97 @@
     return html;
   }
 
+  // ---- odpočet k termínu ----
+
+  function tvarCisla(pocet, jeden, dva, vic) {
+    if (pocet === 1) return jeden;
+    if (pocet >= 2 && pocet <= 4) return dva;
+    return vic;
+  }
+
+  // Velké číslo u termínu: do měsíce dny, do roku měsíce, dál roky s jedním
+  // desetinným místem. Co je za námi, je tlumené a má u jednotky „zpět".
+  function htmlOdpocet(n) {
+    if (!n.datum) return "";
+    var dni = Util.zaDni(n.datum);
+    if (typeof dni !== "number" || isNaN(dni)) return "";
+    var minulost = dni < 0;
+    var abs = Math.abs(dni);
+    var cislo;
+    var jednotka;
+    if (abs === 0) {
+      cislo = "dnes";
+      jednotka = "";
+    } else if (abs < 31) {
+      cislo = abs;
+      jednotka = tvarCisla(abs, "den", "dny", "dní");
+    } else if (abs < 365) {
+      var mesicu = Math.round(abs / 30.44);
+      cislo = mesicu;
+      jednotka = tvarCisla(mesicu, "měsíc", "měsíce", "měsíců");
+    } else {
+      var roky = Math.round((abs / 365.25) * 10) / 10;
+      var cele = roky === Math.round(roky);
+      cislo = String(roky).replace(".", ",");
+      jednotka = cele ? tvarCisla(roky, "rok", "roky", "let") : "roku";
+    }
+    var popis = abs === 0
+      ? "Termín je dnes"
+      : (minulost ? "Bylo před " : "Zbývá ") + cislo + " " + jednotka;
+    if (jednotka && minulost) jednotka += " zpět";
+    return '<span class="navsteva-odpocet' + (minulost ? " navsteva-odpocet-minulost" : "") +
+      '" title="' + esc(popis) + '"><strong>' + esc(String(cislo)) + "</strong>" +
+      (jednotka ? '<span class="navsteva-odpocet-jednotka">' + esc(jednotka) + "</span>" : "") +
+      "</span>";
+  }
+
+  // ---- komentáře rovnou na kartě ----
+  //
+  // Dřív byly jen v detailu, takže se k nim muselo proklikávat. Na kartě je
+  // vidět poslední komentář a dá se rovnou odpovědět; starší zůstávají
+  // v detailu, ať karta nenaroste.
+
+  function htmlKomentareNaKarte(n, aktivita, lide) {
+    var seznam = (aktivita || []).filter(function (a) {
+      return !a.smazano && a.druh === "komentar" && a.entita === "navsteva" && a.entita_id === n.id;
+    }).slice().sort(function (a, b) { return String(b.kdy).localeCompare(String(a.kdy)); });
+
+    var smiKomentovat = !!(window.Auth && Auth.can && Auth.can("komentare.pridat"));
+    var html = '<div class="navsteva-komentare">';
+
+    if (seznam.length) {
+      var posledni = seznam[0];
+      html += '<div class="navsteva-komentar">' +
+        '<div class="karta-meta"><strong>' + esc(jmenoAutora(posledni.kdo, lide)) + "</strong> · " +
+        esc(Util.formatCas(posledni.kdy)) + "</div>" +
+        '<p class="navsteva-komentar-text">' + esc(posledni.text) + "</p>" +
+        htmlRadekZminek(posledni) + "</div>";
+      if (seznam.length > 1) {
+        html += '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="otevrit">' +
+          "Starší komentáře (" + (seznam.length - 1) + ")</button>";
+      }
+    } else {
+      html += '<p class="karta-meta navsteva-komentar-prazdno">Zatím bez komentáře.</p>';
+    }
+
+    if (smiKomentovat) {
+      html += '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="prepnout-komentar" ' +
+        'aria-expanded="' + (jeOtevrenyPanel(n.id, "komentar") ? "true" : "false") + '">Komentovat</button>';
+      if (jeOtevrenyPanel(n.id, "komentar")) {
+        html += '<form data-nav-akce-form="pridat-komentar" class="navsteva-inline-panel">' +
+          '<textarea name="text" rows="2" required placeholder="Napsat komentář…"></textarea>' +
+          "<div data-zminky-misto></div>" +
+          '<div class="karta-akce"><button type="submit" class="btn btn-mala btn-primarni">Přidat</button>' +
+          '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="zavrit-panel">Zavřít</button>' +
+          "</div></form>";
+      }
+    }
+    return html + "</div>";
+  }
+
   // ---- karta ----
 
-  function htmlKarta(n, lide, plan, prava, jeNejblizsi) {
+  function htmlKarta(n, lide, plan, prava, jeNejblizsi, aktivita) {
     var info = stavInfo(n.stav);
     var presnost = n.datum_presnost || "presne";
     var jeOrientacni = !!n.datum && (info.orientacne || presnost === "mesic" || presnost === "obdobi");
@@ -505,6 +593,7 @@
       html += '<span class="navsteva-termin">' + vnitrek + "</span>";
     }
 
+    html += htmlOdpocet(n);
     html += '<span class="navsteva-stav-nazev">' + esc(info.nazev) + "</span>";
     if (jeOrientacni) html += '<span class="navsteva-orientacne">orientačně</span>';
     if (jeNejblizsi) html += '<span class="navsteva-znacka-nejblizsi">nejbližší</span>';
@@ -517,13 +606,13 @@
       '<button type="button" class="navsteva-nazev-btn" data-nav-akce="otevrit">' +
       "č. " + esc(n.cislo) + " — " + esc(n.nazev) + "</button></h4></div>";
 
-    // 3) rychlý přehled
-    html += '<div class="karta-meta">Milník stavby: ' + (milnik ? esc(milnik.nazev) : "bez vazby") + "</div>";
+    // 3) rychlý přehled — co nejméně řádků (stavbařům to bylo složité, 8. 10. 2026).
+    // Milník tu už není: název návštěvy ho nese a Plán stavby vidí jen náš tým.
     if ((n.typ || []).length) {
       html += '<div class="navsteva-typy">' + typChipy(n.typ) + "</div>";
     }
-    html += '<div class="karta-meta">Za stavbu: ' + htmlZaStavbu(n, lide, true) + "</div>";
-    html += '<div class="karta-meta">Za nás: ' + esc(jmenaOsobPodleId(n.za_nas, lide)) + "</div>";
+    html += '<div class="karta-meta">Za stavbu: ' + htmlZaStavbu(n, lide, true) +
+      " · Za nás: " + esc(jmenaOsobPodleId(n.za_nas, lide)) + "</div>";
 
     html += htmlShotNaKarte(n, prava);
 
@@ -534,10 +623,23 @@
       html += '<a class="navsteva-odkaz-casosber" href="#casosber">→ Časosběr</a>';
     }
 
-    // 4) akce — posun stavu jedním tlačítkem + detail
+    html += htmlKomentareNaKarte(n, aktivita, lide);
+
+    // 4) akce — posun stavu, úprava rovnou na kartě, detail jako záloha
     var kroky = htmlKrokyStavu(n, prava);
-    html += '<div class="karta-akce navsteva-akce">' + kroky +
-      '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="otevrit">Detail…</button></div>';
+    html += '<div class="karta-akce navsteva-akce">' + kroky;
+    if (prava.upravit) {
+      html += '<button type="button" class="btn btn-mala btn-sekundarni" data-nav-akce="prepnout-editaci" ' +
+        'aria-expanded="' + (jeOtevrenyPanel(n.id, "editace") ? "true" : "false") + '">' +
+        (jeOtevrenyPanel(n.id, "editace") ? "Zavřít úpravy" : "Upravit tady") + "</button>";
+    }
+    html += "</div>";
+
+    // Celý editační formulář rovnou v kartě — stejná pole jako v detailu,
+    // jen se kvůli nim nemusí otevírat okno.
+    if (jeOtevrenyPanel(n.id, "editace") && prava.upravit) {
+      html += '<div class="navsteva-inline-panel">' + htmlFormularEditace(n, plan, lide) + "</div>";
+    }
 
     if (jeOtevrenyPanel(n.id, "vraceni") && prava.schvalit) html += htmlInlineVraceni(n);
 
@@ -567,6 +669,7 @@
 
     var lide = polozkyZeSouboru("lide");
     var plan = polozkyZeSouboru("plan");
+    var aktivita = polozkyZeSouboru("aktivita");
     var prava = zjistiPrava();
     var seznam = filtrovaneNavstevy();
     var nejblizsiId = idNejblizsiNavstevy();
@@ -592,13 +695,18 @@
           '<span class="navstevy-rok-pocet">' + skupina.polozky.length + "</span></h3>";
         html += '<div class="karty-mrizka navstevy-mrizka">' +
           skupina.polozky.map(function (n) {
-            return htmlKarta(n, lide, plan, prava, n.id === nejblizsiId);
+            return htmlKarta(n, lide, plan, prava, n.id === nejblizsiId, aktivita);
           }).join("") + "</div>";
       });
     }
 
     cil.innerHTML = html;
     napojPosluchace(cil);
+    // Výběr lidí k označení patří k otevřenému komentáři na kartě stejně jako
+    // k tomu v detailu — jinak by se v kartě nedalo nikoho zmínit.
+    if (panelOtevreny && panelOtevreny.druh === "komentar") {
+      dopluVyberZminek(cil.querySelector('[data-id="' + panelOtevreny.id + '"]'));
+    }
     vratFokus(cil);
   }
 
@@ -791,7 +899,7 @@
 
   function htmlShotList(n, smiUpravit) {
     var polozky = n.co_se_toci || [];
-    var html = '<div class="oddil"><h3 class="nadpis-sekce" style="font-size:1rem">Shot list</h3>';
+    var html = '<div class="oddil"><h3 class="nadpis-sekce" style="font-size:1rem">Co se natočí</h3>';
     if (!polozky.length) {
       html += '<p class="podnadpis-sekce" style="margin:0">Zatím žádné položky.</p>';
     } else {
@@ -815,7 +923,7 @@
     }
     if (smiUpravit) {
       html += '<form data-nav-akce-form="shot-pridat" style="display:flex;gap:8px;margin-top:10px">' +
-        '<input type="text" name="text" placeholder="Nová položka shot listu…" required ' +
+        '<input type="text" name="text" placeholder="Další záběr…" required ' +
         'style="flex:1 1 auto;background:var(--panel-2);border:1px solid var(--linka);color:var(--text);border-radius:2px;padding:10px 12px;min-height:44px">' +
         '<button type="submit" class="btn btn-sekundarni">Přidat</button></form>';
     }
@@ -1086,20 +1194,20 @@
   function shotPridat(id, text) {
     transakce(id, function (n) {
       (n.co_se_toci = n.co_se_toci || []).push({ id: GH.noveId("polozka"), text: text.trim(), hotovo: false });
-    }, "Přidána položka shot listu — návštěva č. " + cisloNavstevy(id)).then(poUspechuNavstevy).catch(poChybe);
+    }, "Přidán bod „Co se natočí“ — návštěva č. " + cisloNavstevy(id)).then(poUspechuNavstevy).catch(poChybe);
   }
 
   function shotPrepnout(id, polozkaId) {
     transakce(id, function (n) {
       var p = (n.co_se_toci || []).find(function (x) { return x.id === polozkaId; });
       if (p) p.hotovo = !p.hotovo;
-    }, "Upraven shot list — návštěva č. " + cisloNavstevy(id)).then(poUspechuNavstevy).catch(poChybe);
+    }, "Upraveno „Co se natočí“ — návštěva č. " + cisloNavstevy(id)).then(poUspechuNavstevy).catch(poChybe);
   }
 
   function shotSmazat(id, polozkaId) {
     transakce(id, function (n) {
       n.co_se_toci = (n.co_se_toci || []).filter(function (x) { return x.id !== polozkaId; });
-    }, "Smazána položka shot listu — návštěva č. " + cisloNavstevy(id)).then(poUspechuNavstevy).catch(poChybe);
+    }, "Smazán bod „Co se natočí“ — návštěva č. " + cisloNavstevy(id)).then(poUspechuNavstevy).catch(poChybe);
   }
 
   // Komentář se zapisuje přímo do aktivita.json (entita_id vyplněné) — auto-log
@@ -1316,6 +1424,14 @@
         potvrditTermin(id);
       } else if (akce === "stav-probehlo") {
         oznacitProbehlo(id);
+      } else if (akce === "prepnout-komentar") {
+        nastavPanel(id, "komentar");
+        if (jeOtevrenyPanel(id, "komentar")) fokusPo = '[data-id="' + id + '"] [name="text"]';
+        vykresli(posledniKontejner);
+      } else if (akce === "prepnout-editaci") {
+        nastavPanel(id, "editace");
+        if (jeOtevrenyPanel(id, "editace")) fokusPo = '[data-id="' + id + '"] [name="nazev"]';
+        vykresli(posledniKontejner);
       } else if (akce === "stav-vratit") {
         nastavPanel(id, "vraceni");
         if (jeOtevrenyPanel(id, "vraceni")) fokusPo = '[data-id="' + id + '"] [name="inline-vraceni"]';
@@ -1334,6 +1450,30 @@
           return;
         }
         vratitDoNavrhu(id, text);
+      }
+    });
+
+    // Formuláře rovnou v kartě (úprava návštěvy, komentář). Detail má vlastní
+    // posluchač v napojPosluchaceDetail — tenhle je jen pro seznam.
+    cil.addEventListener("submit", function (e) {
+      if (cil.dataset.aktivniSekce !== "navstevy") return;
+      var form = e.target;
+      if (!form.matches || !form.matches("[data-nav-akce-form]")) return;
+      e.preventDefault();
+      var idFormulare = idKarty(form);
+      if (!idFormulare) return;
+      var typAkce = form.dataset.navAkceForm;
+
+      if (typAkce === "ulozit-zmeny") {
+        panelOtevreny = null;
+        ulozitZmeny(idFormulare, form);
+      } else if (typAkce === "pridat-komentar") {
+        var pole = form.querySelector('[name="text"]');
+        var txt = pole ? pole.value.trim() : "";
+        var oznaceni = vyberZminekKomentare ? vyberZminekKomentare.vybrane() : [];
+        if (!txt) return;
+        panelOtevreny = null;
+        pridatKomentarZaznam(idFormulare, txt, oznaceni).catch(poChybe);
       }
     });
 

@@ -281,10 +281,13 @@
 
     var dalsi = [];
 
-    // dodatek §B.3 — protiplnění pro Emauzský klášter
+    // dodatek §B.3 — protiplnění pro Emauzský klášter. Je to náš závazek,
+    // stavby se netýká — upozornění vidí jen náš tým.
+    var nasTym = !!(window.Auth && (Auth.role === "superadmin" ||
+      (typeof App.jsemZaFD === "function" && App.jsemZaFD())));
     var emauzy = materialy.filter(function (m) { return !m.smazano && m.prijemce === "Emauzy"; });
     var emauzyHotovo = emauzy.filter(function (m) { return m.stav === "hotovo" || m.stav === "predano"; });
-    if (emauzyHotovo.length === 0) {
+    if (nasTym && emauzyHotovo.length === 0) {
       dalsi.push("Materiál pro Emauzský klášter zatím nebyl dodán — je to protiplnění za kameru na balkoně.");
     }
 
@@ -542,6 +545,17 @@
 
     cil.innerHTML = html;
     napojPosluchace(cil);
+
+    // Na mobilu je menu dole jako lišta a lístečky se do ní nevejdou — tady
+    // jsou proto hned nahoře v Přehledu, ať je každý vidí bez proklikávání.
+    var mobil = window.matchMedia && window.matchMedia("(max-width: 719px)").matches;
+    if (mobil && window.Listecky && typeof Listecky.vlozDo === "function") {
+      var listecky = document.createElement("section");
+      listecky.className = "oddil listecky-v-prehledu";
+      Listecky.vlozDo(listecky);
+      var chyba = cil.querySelector("#prehled-chyba");
+      cil.insertBefore(listecky, chyba ? chyba.nextSibling : cil.firstChild);
+    }
   }
 
   // ---- akce ----
