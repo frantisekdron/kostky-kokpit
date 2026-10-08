@@ -1322,7 +1322,11 @@
   }
 
   function potvrditTermin(id) {
-    transakce(id, function (n) { n.stav = "potvrzeno"; }, "Potvrzen termín — návštěva č. " + cisloNavstevy(id))
+    transakce(id, function (n) {
+      n.stav = "potvrzeno";
+      // Potvrzený termín je přesný den — orientační „říjen“ už neplatí.
+      if (n.datum) { n.datum_presnost = "presne"; n.datum_do = null; }
+    }, "Potvrzen termín — návštěva č. " + cisloNavstevy(id))
       .then(poUspechuNavstevy).catch(poChybe);
   }
 
@@ -1804,7 +1808,9 @@
       if (!navsteva) return;
 
       if (t.name === "inline-datum") {
-        ulozTermin(id, { datum: t.value || null });
+        // Vybraný konkrétní den = přesný termín. Dřív zůstala přesnost
+        // „období“ a karta dál ukazovala jen „říjen“ (Franta 8. 10. 2026).
+        ulozTermin(id, t.value ? { datum: t.value, datum_presnost: "presne" } : { datum: null });
       } else if (t.name === "inline-presnost") {
         var presnost = t.value || "presne";
         var zmeny = { datum_presnost: presnost };
