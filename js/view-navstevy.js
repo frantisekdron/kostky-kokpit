@@ -2,28 +2,28 @@
  * view-navstevy.js — sekce "Návštěvy" (KONTRAKT.md §9.2 a celý §6 — schvalovací
  * kolečko natáčecích návštěv).
  *
- * Seznam našich natáčecích návštěv na stavbě, seskupený po letech
- * (2026 / 2027 / 2028 / 2029, bezdatumové na konci), s přepínačem
- * Vše | Čeká na schválení | Nadcházející | Proběhlé (u každého počet).
+ * PŘESTAVBA 8. 10. 2026 podle zadání majitele „zjednoduš to jako top AAA UI
+ * designer“. Dřív to byl sloupec 16+ vysokých karet, z nichž každá ukazovala
+ * všechno a „Upravit tady“ v ní rozbalilo celý formulář. Teď:
  *
- * KARTA má nahoře JEDEN zřetelný stavový řádek: velká barevná kontrolka
- * (kroužek s tvarem — ○ ◐ ◆ ● ✓ ✕, aby se stavy poznaly i bez barvy),
- * termín, čas a název stavu. Barvy dle KONTRAKT.md §8:
+ *   1) pruh „Čeká na vás“ — max. 5 návštěv, u kterých se od nás něco čeká
+ *      (schválit, potvrdit, označit jako proběhlé, odeslat ke schválení),
+ *      každá s jedním tlačítkem;
+ *   2) „Příště“ — jediná výrazná karta nejbližší návštěvy (datum, odpočet,
+ *      lidé, odškrtávací body „Co se natočí“, poslední komentář);
+ *   3) „Plán“ — kompaktní řádky po letech (jeden řádek = jedna návštěva,
+ *      klik otevře detail);
+ *   4) „Proběhlo“ — sbalený seznam hotových a zrušených návštěv.
+ *
+ * Karty se nikdy nenatahují: veškeré úpravy (termín, shot list, komentáře,
+ * schvalování, podrobnosti, nebezpečná zóna) jsou výhradně v BOČNÍM PANELU
+ * (dialog s třídou nv-panel), který se otevře klikem na řádek / kartu.
+ * Hromadné akce („Kopírovat plán jako text“, „Odeslat celý návrh ke
+ * schválení“) jsou schované v menu ⋯ v hlavičce.
+ *
+ * Barvy stavů dle KONTRAKT.md §8 řeší CSS (třídy nv-stav-STAV):
  *   navrh šedá · ke-schvaleni oranžová · schvaleno modrá · potvrzeno zelená ·
- *   probehlo tmavě zelená · zruseno červená (termín přeškrtnutý).
- * U stavů navrh/ke-schvaleni/schvaleno a u měsíčních/obdobních termínů se
- * připisuje drobné "orientačně".
- *
- * RYCHLÁ EDITACE PŘÍMO NA KARTĚ (jen s právem navstevy.upravit):
- *   - klik na termín rozbalí inline pole datum + přesnost (přesně/měsíc/období,
- *     u období i "do") a čas od–do; každá změna se ukládá HNED (GH.zmen),
- *   - posun ve schvalovacím kolečku jedním tlačítkem (§6), včetně vrácení do
- *     "navrh" s povinnou poznámkou min. 3 znaky (smí jen navstevy.schvalit),
- *   - shot list se zaškrtáváním v rozbalovacím <details>, ať karta není dlouhá.
- * Modál (plná editace) zůstává pro zbytek polí — název, milník, typy, čerpání,
- * obsazení, poznámka — plus shot list s přidáním/mazáním, komentáře a
- * nebezpečnou zónu (zrušit návštěvu / do koše). Termín a čas se v modálu už
- * needitují (jsou na kartě), jen se vypisují.
+ *   probehlo tmavě zelená · zruseno červená.
  *
  * Schvalovací kolečko přesně dle §6:
  *   navrh -> ke-schvaleni -> schvaleno -> potvrzeno -> probehlo
@@ -37,10 +37,10 @@
  * "Kopírovat plán jako text" vygeneruje čitelný seznam všech návštěv do
  * schránky. Mazání je soft delete (smazano:{kdy,kdo}). Čtenáři (bez
  * navstevy.upravit apod.) se editační prvky nezobrazují vůbec — vidí jen
- * text a tlačítko Detail.
+ * text a odškrtnuté body bez možnosti měnit je.
  *
- * Návštěvy, které mají v poznámce zmínku o sekci Časosběr, dostanou pod
- * kartou odkaz "→ Časosběr" na #casosber (dodatek §A).
+ * Návštěvy, které mají v poznámce zmínku o sekci Časosběr, dostanou
+ * v panelu odkaz "→ Časosběr" na #casosber (dodatek §A).
  *
  * Čte App.polozky(soubor)/App.obsah(soubor) — App.data drží VŽDY celou
  * obálku souboru, nikdy se nesahá na App.data[soubor] přímo (viz hlavičkový
@@ -101,16 +101,16 @@
   ];
 
   var posledniKontejner = null;
-  var filtrAktualni = "vse";
 
-  // Rozbalený inline panel na kartě — vždy nejvýš jeden ({id, druh}),
-  // druh: "termin" | "vraceni". Drží se v modulu, aby přežil překreslení
-  // po uložení (GH.zmen -> vykresli()).
-  var panelOtevreny = null;
-  // Rozbalené shot listy na kartách (id -> true).
-  var shotOtevrene = Object.create(null);
+  // Sbalený seznam „Proběhlo“ (<details>) — drží se v modulu, aby se po
+  // překreslení (každý zápis dat) znovu nesbalil.
+  var probehloOtevrene = false;
   // Selektor prvku, na který se má po překreslení vrátit fokus.
   var fokusPo = null;
+  // Boční panel: true = v sekci „Podrobnosti“ je místo čtení formulář úprav.
+  var detailUpravy = false;
+  // Menu ⋯ v hlavičce — dokumentové posluchače (klik mimo, Esc) se věší jen jednou.
+  var menuNapojeno = false;
 
   var idOtevrenehoDetailu = null;
   var modalObsahUzel = null;
@@ -176,7 +176,7 @@
     return jmena.length ? jmena.join(", ") : "—";
   }
 
-  // Jen jména bez telefonů — na kartu, kde jde o rychlý přehled.
+  // Jen jména bez telefonů — do karty „Příště“, kde jde o rychlý přehled.
   function jmenaOsobPodleId(ids, lide) {
     if (!ids || !ids.length) return "—";
     var jmena = [];
@@ -228,7 +228,7 @@
     return n ? n.cislo : "";
   }
 
-  // Zmínka o sekci Časosběr v poznámce -> pod kartou odkaz "→ Časosběr".
+  // Zmínka o sekci Časosběr v poznámce -> v panelu odkaz "→ Časosběr".
   // Porovnává se bez diakritiky a bez ohledu na velikost písmen, ať to
   // chytne "Časosběr", "casosber" i "časosběrných kamer".
   function zminujeCasosber(text) {
@@ -238,18 +238,6 @@
       normalizovane = normalizovane.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     }
     return normalizovane.indexOf("casosber") !== -1;
-  }
-
-  function jeOtevrenyPanel(id, druh) {
-    return !!(panelOtevreny && panelOtevreny.id === id && panelOtevreny.druh === druh);
-  }
-
-  function nastavPanel(id, druh) {
-    if (jeOtevrenyPanel(id, druh)) {
-      panelOtevreny = null;
-    } else {
-      panelOtevreny = { id: id, druh: druh };
-    }
   }
 
   // ---- "Kopírovat plán jako text" (§6 kontraktu) ----
@@ -279,23 +267,14 @@
     return radky.join("\n");
   }
 
-  // ---- seznam / filtr / seskupení po letech ----
+  // ---- seznam: řazení, seskupení po letech, příští návštěva ----
 
   function ziveNavstevy() {
     return polozkyZeSouboru("navstevy").filter(function (n) { return !n.smazano; });
   }
 
-  function projdiFiltrem(vse, klic) {
-    if (klic === "ceka") {
-      return vse.filter(function (n) { return n.stav === "ke-schvaleni"; });
-    }
-    if (klic === "nadchazejici") {
-      return vse.filter(function (n) { return n.stav !== "probehlo" && n.stav !== "zruseno"; });
-    }
-    if (klic === "probehle") {
-      return vse.filter(function (n) { return n.stav === "probehlo"; });
-    }
-    return vse;
+  function jeDokoncena(n) {
+    return n.stav === "probehlo" || n.stav === "zruseno";
   }
 
   // Chronologicky (datum), při shodě podle čísla. Návštěvy bez data jdou
@@ -307,8 +286,12 @@
     return (a.cislo || 0) - (b.cislo || 0);
   }
 
-  function filtrovaneNavstevy() {
-    return projdiFiltrem(ziveNavstevy(), filtrAktualni).slice().sort(porovnejNavstevy);
+  // Nejnovější nahoře (sekce „Proběhlo“); bez data až na konec.
+  function porovnejSestupne(a, b) {
+    var da = a.datum || "";
+    var db = b.datum || "";
+    if (da !== db) return da < db ? 1 : -1;
+    return (b.cislo || 0) - (a.cislo || 0);
   }
 
   function skupinyPodleRoku(seznam) {
@@ -332,140 +315,192 @@
     });
   }
 
-  // Nejbližší nadcházející návštěva napříč VŠEMI (nezávisle na filtru) —
-  // dostane akcentní rámeček. Bere se první nezrušená a neproběhlá s datem
-  // ode dneška dál.
-  function idNejblizsiNavstevy() {
-    var dnes = dnesniIso();
-    var kandidati = ziveNavstevy().filter(function (n) {
-      return n.datum && n.datum >= dnes && n.stav !== "probehlo" && n.stav !== "zruseno";
-    }).slice().sort(porovnejNavstevy);
-    return kandidati.length ? kandidati[0].id : null;
-  }
-
-  function htmlFiltry() {
-    var vse = ziveNavstevy();
-    var FILTRY = [
-      { klic: "vse", nazev: "Vše" },
-      { klic: "ceka", nazev: "Čeká na schválení" },
-      { klic: "nadchazejici", nazev: "Nadcházející" },
-      { klic: "probehle", nazev: "Proběhlé" }
-    ];
-    var html = '<div class="navstevy-filtr" role="tablist" aria-label="Filtr návštěv">';
-    FILTRY.forEach(function (f) {
-      var aktivni = f.klic === filtrAktualni;
-      var pocet = projdiFiltrem(vse, f.klic).length;
-      html += '<button type="button" class="btn btn-mala ' + (aktivni ? "btn-primarni" : "btn-sekundarni") +
-        '" data-nav-akce="filtr" data-filtr="' + f.klic + '" aria-pressed="' + aktivni + '">' +
-        esc(f.nazev) + ' <span class="navstevy-filtr-pocet">(' + pocet + ")</span></button>";
-    });
-    html += "</div>";
-    return html;
-  }
-
-  // ---- inline editace termínu přímo na kartě ----
-
-  function htmlInlineTermin(n) {
-    var id = esc(n.id);
+  // Poslední den, kdy termín ještě platí. U přesného data ten den, u měsíční
+  // přesnosti konec měsíce, u období datum_do. Bez toho by návštěva
+  // „říjen 2026“ uložená jako 1. 10. byla 2. října už „po termínu“.
+  function konecTerminuIso(n) {
+    if (!n.datum) return null;
     var presnost = n.datum_presnost || "presne";
-    var html = '<div class="navsteva-inline" data-panel="termin">';
-    html += '<div class="navsteva-inline-mrizka">';
+    if (presnost === "obdobi" && n.datum_do) return n.datum_do;
+    if (presnost === "mesic") {
+      var p = /^(\d{4})-(\d{2})/.exec(n.datum);
+      if (!p) return n.datum;
+      var rok = parseInt(p[1], 10);
+      var mesic = parseInt(p[2], 10);
+      var posledni = new Date(rok, mesic, 0).getDate();
+      return p[1] + "-" + p[2] + "-" + (posledni < 10 ? "0" : "") + posledni;
+    }
+    return n.datum;
+  }
 
-    html += '<div class="navsteva-pole"><label for="itd-' + id + '">Datum</label>' +
-      '<input id="itd-' + id + '" name="inline-datum" type="date" value="' + esc(n.datum || "") + '"></div>';
+  // Kolik kalendářních měsíců je od letošního měsíce k měsíci návštěvy
+  // (0 = tento měsíc). Pro orientační termíny, kde den nic neznamená.
+  function mesicuDoTerminu(n) {
+    var p = /^(\d{4})-(\d{2})/.exec(String(n.datum || ""));
+    if (!p) return null;
+    var ted = new Date();
+    return (parseInt(p[1], 10) * 12 + parseInt(p[2], 10)) - (ted.getFullYear() * 12 + ted.getMonth() + 1);
+  }
 
-    html += '<div class="navsteva-pole"><label for="itp-' + id + '">Přesnost</label>' +
-      '<select id="itp-' + id + '" name="inline-presnost">';
-    PRESNOSTI.forEach(function (p) {
-      html += '<option value="' + p[0] + '"' + (presnost === p[0] ? " selected" : "") + ">" + esc(p[1]) + "</option>";
+  // Nejbližší nadcházející návštěva (nezrušená, neproběhlá, s termínem, který
+  // ještě neskončil) — dostane velkou kartu „Příště“. `serazene` je podle data.
+  function nejblizsiNavsteva(serazene, dnes) {
+    for (var i = 0; i < serazene.length; i++) {
+      var n = serazene[i];
+      if (n.datum && konecTerminuIso(n) >= dnes && !jeDokoncena(n)) return n;
+    }
+    return null;
+  }
+
+  // Počet komentářů a poslední komentář ke každé návštěvě (z aktivita.json).
+  function indexKomentaru(aktivita) {
+    var pocet = Object.create(null);
+    var posledni = Object.create(null);
+    (aktivita || []).forEach(function (a) {
+      if (a.smazano || a.druh !== "komentar" || a.entita !== "navsteva" || !a.entita_id) return;
+      pocet[a.entita_id] = (pocet[a.entita_id] || 0) + 1;
+      var p = posledni[a.entita_id];
+      if (!p || String(a.kdy) > String(p.kdy)) posledni[a.entita_id] = a;
     });
-    html += "</select></div>";
-
-    if (presnost === "obdobi") {
-      html += '<div class="navsteva-pole"><label for="itdd-' + id + '">Období do</label>' +
-        '<input id="itdd-' + id + '" name="inline-datum-do" type="date" value="' + esc(n.datum_do || "") + '"></div>';
-    }
-
-    html += '<div class="navsteva-pole"><label for="itco-' + id + '">Čas od</label>' +
-      '<input id="itco-' + id + '" name="inline-cas-od" type="time" value="' + esc(n.cas_od || "") + '"></div>';
-    html += '<div class="navsteva-pole"><label for="itcd-' + id + '">Čas do</label>' +
-      '<input id="itcd-' + id + '" name="inline-cas-do" type="time" value="' + esc(n.cas_do || "") + '"></div>';
-
-    html += "</div>";
-    html += '<p class="navsteva-inline-napoveda">Každá změna se uloží hned.</p>';
-    html += '<div class="karta-akce"><button type="button" class="btn btn-mala btn-tiche" ' +
-      'data-nav-akce="zavrit-panel">Hotovo</button></div>';
-    html += "</div>";
-    return html;
+    return { pocet: pocet, posledni: posledni };
   }
 
-  function htmlInlineVraceni(n) {
-    var id = esc(n.id);
-    var html = '<div class="navsteva-inline" data-panel="vraceni">';
-    html += '<div class="navsteva-pole"><label for="ivr-' + id + '">Důvod vrácení (min. 3 znaky)</label>' +
-      '<textarea id="ivr-' + id + '" name="inline-vraceni" rows="2"></textarea></div>';
-    html += '<div class="navsteva-inline-chyba" hidden></div>';
-    html += '<div class="karta-akce">' +
-      '<button type="button" class="btn btn-mala btn-primarni" data-nav-akce="potvrdit-vraceni-karta">Potvrdit vrácení</button>' +
-      '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="zavrit-panel">Zrušit</button>' +
-      "</div>";
-    html += "</div>";
-    return html;
+  // ---- formáty data pro kompaktní seznam ----
+
+  var MESICE_NOM = [
+    "leden", "únor", "březen", "duben", "květen", "červen",
+    "červenec", "srpen", "září", "říjen", "listopad", "prosinec"
+  ];
+  var MESICE_GEN = [
+    "ledna", "února", "března", "dubna", "května", "června",
+    "července", "srpna", "září", "října", "listopadu", "prosince"
+  ];
+
+  function rozdelIso(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+    if (!m) return null;
+    return { rok: parseInt(m[1], 10), mesic: parseInt(m[2], 10), den: parseInt(m[3], 10) };
   }
 
-  // ---- schvalovací kolečko jedním tlačítkem na kartě (§6) ----
+  // Přesné datum? (Návštěva bez data se bere jako „orientační“ — nic nevíme.)
+  function jePresne(n) {
+    return !!n.datum && (n.datum_presnost || "presne") === "presne";
+  }
 
-  function htmlKrokyStavu(n, prava) {
-    var tlacitka = "";
-    if (n.stav === "navrh" && prava.upravit) {
-      tlacitka += '<button type="button" class="btn btn-mala btn-primarni" data-nav-akce="stav-odeslat">Odeslat ke schválení</button>';
+  // Velké datum v kartě „Příště“: „15. října“ (u jiného roku než letošního
+  // i s rokem), u měsíční/obdobní přesnosti „říjen 2026“ (resp. rozsah).
+  function datumVelke(n) {
+    var p = rozdelIso(n.datum);
+    if (!p) return "datum neurčeno";
+    if ((n.datum_presnost || "presne") === "presne") {
+      var text = p.den + ". " + MESICE_GEN[p.mesic - 1];
+      if (p.rok !== new Date().getFullYear()) text += " " + p.rok;
+      return text;
     }
+    return formatDatumNavstevy(n);
+  }
+
+  // Krátké datum do sloupce řádku: „1. 12.“ nebo (orientačně) „prosinec“.
+  function datumKratke(n) {
+    var p = rozdelIso(n.datum);
+    if (!p) return "—";
+    if ((n.datum_presnost || "presne") === "presne") return p.den + ". " + p.mesic + ".";
+    return MESICE_NOM[p.mesic - 1];
+  }
+
+  // „za 7 dní“ / „za 2 měs.“ / „za 1 rok“ (a „před …“ pro zpožděné návštěvy).
+  function textZa(n) {
+    if (!n.datum) return "";
+    if (!jePresne(n)) {
+      var m = mesicuDoTerminu(n);
+      if (m === null) return "";
+      if (m === 0) return "tento měsíc";
+      if (m === 1) return "příští měsíc";
+      if (m === -1) return "minulý měsíc";
+      var absM = Math.abs(m);
+      if (absM < 12) return (m > 0 ? "za " : "před ") + absM + " měs.";
+      var r = Math.round(absM / 12);
+      return m > 0 ? "za " + r + " " + tvarCisla(r, "rok", "roky", "let") : "před " + r + " " + (r === 1 ? "rokem" : "lety");
+    }
+    var dni = Util.zaDni(n.datum);
+    if (typeof dni !== "number" || isNaN(dni)) return "";
+    if (dni === 0) return "dnes";
+    var budouci = dni > 0;
+    var abs = Math.abs(dni);
+    var predpona = budouci ? "za " : "před ";
+    if (abs === 1) return budouci ? "zítra" : "včera";
+    if (abs < 31) {
+      return predpona + abs + " " + (budouci ? tvarCisla(abs, "den", "dny", "dní") : "dny");
+    }
+    var mesicu = Math.max(1, Math.round(abs / 30.44));
+    if (abs < 365 && mesicu < 12) return predpona + mesicu + " měs.";
+    var roku = Math.max(1, Math.round(abs / 365.25));
+    if (budouci) return "za " + roku + " " + tvarCisla(roku, "rok", "roky", "let");
+    return "před " + roku + " " + (roku === 1 ? "rokem" : "lety");
+  }
+
+  function zkrat(text, max) {
+    var t = String(text || "").replace(/\s+/g, " ").trim();
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+  }
+
+  // ---- ikony typů (jednoduché linkové SVG 16×16, barva dle currentColor) ----
+
+  function svg(vnitrek) {
+    return '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      vnitrek + "</svg>";
+  }
+
+  var IKONY = {
+    // fotoaparát
+    foto: svg('<path d="M2 5.5h2.2l1.1-1.7h5.4l1.1 1.7H14a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V6a.5.5 0 0 1 .5-.5z"/>' +
+      '<circle cx="8" cy="9" r="2.4"/>'),
+    // dron: kříž se čtyřmi kroužky
+    dron: svg('<circle cx="3.2" cy="3.2" r="1.7"/><circle cx="12.8" cy="3.2" r="1.7"/>' +
+      '<circle cx="3.2" cy="12.8" r="1.7"/><circle cx="12.8" cy="12.8" r="1.7"/>' +
+      '<path d="M4.4 4.4 6.8 6.8M11.6 4.4 9.2 6.8M4.4 11.6 6.8 9.2M11.6 11.6 9.2 9.2"/>' +
+      '<rect x="6.6" y="6.6" width="2.8" height="2.8" rx=".6"/>'),
+    // videokamera
+    rucni: svg('<rect x="1.5" y="4.5" width="9" height="7" rx="1.2"/><path d="M10.5 7.2 14.5 5v6l-4-2.2z"/>'),
+    // klíč
+    "casosber-servis": svg('<circle cx="5" cy="11" r="2.8"/><path d="M7 9l6.5-6.5M11 4.5l1.8 1.8M9.3 6.2l1.4 1.4"/>'),
+    // mikrofon (typ „rozhovor“)
+    rozhovor: svg('<rect x="6" y="1.8" width="4" height="7" rx="2"/><path d="M3.8 7.5a4.2 4.2 0 0 0 8.4 0M8 11.7v2.5M5.5 14.2h5"/>')
+  };
+
+  function htmlIkony(typy) {
+    var html = '<span class="nv-ikony">';
+    TYP_PORADI.forEach(function (t) {
+      if (!IKONY[t] || (typy || []).indexOf(t) === -1) return;
+      var nazev = esc(TYP_LABEL[t] || t);
+      html += '<span class="nv-ikona nv-ikona-' + esc(t) + '" role="img" title="' + nazev +
+        '" aria-label="' + nazev + '">' + IKONY[t] + "</span>";
+    });
+    return html + "</span>";
+  }
+
+  function htmlStavChip(stav) {
+    return '<span class="nv-stav nv-stav-' + esc(stav) + '">' + esc(stavInfo(stav).nazev) + "</span>";
+  }
+
+  // Co se od nás u návštěvy chce — jeden krok schvalovacího kolečka (§6).
+  // `bezLimitu` = bez omezení „návrh do 45 dní“ (karta „Příště“).
+  function krokCekani(n, prava, dnes, bezLimitu) {
     if (n.stav === "ke-schvaleni" && prava.schvalit) {
-      tlacitka += '<button type="button" class="btn btn-mala btn-primarni" data-nav-akce="stav-schvalit">Schválit</button>';
-      tlacitka += '<button type="button" class="btn btn-mala btn-sekundarni" data-nav-akce="stav-vratit" aria-expanded="' +
-        (jeOtevrenyPanel(n.id, "vraceni") ? "true" : "false") + '">Vrátit k přepracování</button>';
+      return { veta: "Schválit termín a plán", text: "Schválit", akce: "stav-schvalit" };
     }
     if (n.stav === "schvaleno" && prava.upravit) {
-      tlacitka += '<button type="button" class="btn btn-mala btn-primarni" data-nav-akce="stav-potvrdit">Potvrdit termín</button>';
+      return { veta: "Potvrdit termín", text: "Potvrdit", akce: "stav-potvrdit" };
     }
-    if (n.stav === "potvrzeno" && prava.upravit) {
-      tlacitka += '<button type="button" class="btn btn-mala btn-primarni" data-nav-akce="stav-probehlo">Označit jako proběhlo</button>';
+    if (n.stav === "potvrzeno" && prava.upravit && n.datum && konecTerminuIso(n) < dnes) {
+      return { veta: "Proběhlo? Označ to", text: "Proběhlo", akce: "stav-probehlo" };
     }
-    return tlacitka;
-  }
-
-  // ---- shot list na kartě (rozbalovací) ----
-
-  function htmlShotNaKarte(n, prava) {
-    var polozky = n.co_se_toci || [];
-    var hotovo = polozky.filter(function (p) { return p.hotovo; }).length;
-    var otevreno = !!shotOtevrene[n.id];
-
-    var html = '<details class="navsteva-shot"' + (otevreno ? " open" : "") + ">";
-    html += '<summary class="navsteva-shot-souhrn"><span>Co se natočí</span>' +
-      '<span class="navsteva-shot-pocet">' + hotovo + " / " + polozky.length + "</span></summary>";
-
-    if (!polozky.length) {
-      html += '<p class="navsteva-shot-prazdny">Zatím žádné položky — přidají se v detailu.</p>';
-    } else {
-      html += '<ul class="navsteva-shot-seznam">';
-      polozky.forEach(function (p) {
-        var hotovoTrida = p.hotovo ? " navsteva-shot-hotovo" : "";
-        if (prava.upravit) {
-          html += '<li class="navsteva-shot-radek' + hotovoTrida + '">' +
-            '<input type="checkbox" name="shot-karta" data-polozka="' + esc(p.id) + '"' +
-            (p.hotovo ? " checked" : "") + ' id="sk-' + esc(n.id) + "-" + esc(p.id) + '">' +
-            '<label for="sk-' + esc(n.id) + "-" + esc(p.id) + '">' + esc(p.text) + "</label></li>";
-        } else {
-          html += '<li class="navsteva-shot-radek' + hotovoTrida + '">' +
-            '<span class="navsteva-shot-znak" aria-hidden="true">' + (p.hotovo ? "☑" : "☐") + "</span>" +
-            "<span>" + esc(p.text) + "</span></li>";
-        }
-      });
-      html += "</ul>";
+    if (n.stav === "navrh" && prava.upravit && n.datum && (bezLimitu || Util.zaDni(n.datum) <= 45)) {
+      return { veta: "Poslat ke schválení", text: "Odeslat", akce: "stav-odeslat" };
     }
-    html += "</details>";
-    return html;
+    return null;
   }
 
   // ---- odpočet k termínu ----
@@ -480,6 +515,17 @@
   // desetinným místem. Co je za námi, je tlumené a má u jednotky „zpět".
   function htmlOdpocet(n) {
     if (!n.datum) return "";
+    if (!jePresne(n)) {
+      var m = mesicuDoTerminu(n);
+      if (m === null) return "";
+      var minulyM = m < 0;
+      var absM = Math.abs(m);
+      var cisloM = absM === 0 ? "tento" : String(absM);
+      var jednotkaM = absM === 0 ? "měsíc" : tvarCisla(absM, "měsíc", "měsíce", "měsíců") + (minulyM ? " zpět" : "");
+      return '<span class="navsteva-odpocet' + (minulyM ? " navsteva-odpocet-minulost" : "") +
+        '" title="Termín je zatím jen orientační"><strong>' + esc(cisloM) + "</strong>" +
+        '<span class="navsteva-odpocet-jednotka">' + esc(jednotkaM) + "</span></span>";
+    }
     var dni = Util.zaDni(n.datum);
     if (typeof dni !== "number" || isNaN(dni)) return "";
     var minulost = dni < 0;
@@ -512,152 +558,161 @@
       "</span>";
   }
 
-  // ---- komentáře rovnou na kartě ----
-  //
-  // Dřív byly jen v detailu, takže se k nim muselo proklikávat. Na kartě je
-  // vidět poslední komentář a dá se rovnou odpovědět; starší zůstávají
-  // v detailu, ať karta nenaroste.
+  // ---- seznam: hlavička, „Čeká na vás“, „Příště“, „Plán“, „Proběhlo“ ----
 
-  function htmlKomentareNaKarte(n, aktivita, lide) {
-    var seznam = (aktivita || []).filter(function (a) {
-      return !a.smazano && a.druh === "komentar" && a.entita === "navsteva" && a.entita_id === n.id;
-    }).slice().sort(function (a, b) { return String(b.kdy).localeCompare(String(a.kdy)); });
-
-    var smiKomentovat = !!(window.Auth && Auth.can && Auth.can("komentare.pridat"));
-    var html = '<div class="navsteva-komentare">';
-
-    if (seznam.length) {
-      var posledni = seznam[0];
-      html += '<div class="navsteva-komentar">' +
-        '<div class="karta-meta"><strong>' + esc(jmenoAutora(posledni.kdo, lide)) + "</strong> · " +
-        esc(Util.formatCas(posledni.kdy)) + "</div>" +
-        '<p class="navsteva-komentar-text">' + esc(posledni.text) + "</p>" +
-        htmlRadekZminek(posledni) + "</div>";
-      if (seznam.length > 1) {
-        html += '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="otevrit">' +
-          "Starší komentáře (" + (seznam.length - 1) + ")</button>";
-      }
-    } else {
-      html += '<p class="karta-meta navsteva-komentar-prazdno">Zatím bez komentáře.</p>';
+  function htmlHlava(prava, maNavrhy) {
+    var html = '<header class="nv-hlava"><h2>Návštěvy</h2><div class="nv-hlava-akce">';
+    if (prava.pridat) {
+      html += '<button type="button" class="btn btn-primarni btn-mala" data-nav-akce="pridat">+ Návštěva</button>';
     }
-
-    if (smiKomentovat) {
-      html += '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="prepnout-komentar" ' +
-        'aria-expanded="' + (jeOtevrenyPanel(n.id, "komentar") ? "true" : "false") + '">Komentovat</button>';
-      if (jeOtevrenyPanel(n.id, "komentar")) {
-        html += '<form data-nav-akce-form="pridat-komentar" class="navsteva-inline-panel">' +
-          '<textarea name="text" rows="2" required placeholder="Napsat komentář…"></textarea>' +
-          "<div data-zminky-misto></div>" +
-          '<div class="karta-akce"><button type="submit" class="btn btn-mala btn-primarni">Přidat</button>' +
-          '<button type="button" class="btn btn-mala btn-tiche" data-nav-akce="zavrit-panel">Zavřít</button>' +
-          "</div></form>";
-      }
+    html += '<div class="nv-menu"><button type="button" class="nv-menu-btn" data-nav-akce="menu" ' +
+      'aria-haspopup="true" aria-expanded="false" aria-label="Další akce">⋯</button>' +
+      '<div class="nv-menu-seznam" hidden>' +
+      '<button type="button" data-nav-akce="kopirovat-plan">Kopírovat plán jako text</button>';
+    if (prava.upravit && maNavrhy) {
+      html += '<button type="button" data-nav-akce="odeslat-vse">Odeslat celý návrh ke schválení</button>';
     }
-    return html + "</div>";
-  }
-
-  // ---- karta ----
-
-  function htmlKarta(n, lide, plan, prava, jeNejblizsi, aktivita) {
-    var info = stavInfo(n.stav);
-    var presnost = n.datum_presnost || "presne";
-    var jeOrientacni = !!n.datum && (info.orientacne || presnost === "mesic" || presnost === "obdobi");
-    var milnik = n.milnik_id ? najdiPodleId(plan, n.milnik_id) : null;
-    var casText = formatCasRozsah(n);
-
-    // Jemné barevné rozdělení do tří skupin, ať je na první pohled poznat,
-    // co je za námi, co je na řadě a co je zatím jen návrh (Franta 30. 8.).
-    var skupina = "navrh";                                   // další návrhy
-    if (n.stav === "probehlo" || n.stav === "zruseno") skupina = "probehlo";
-    else if (jeNejblizsi) skupina = "nejblizsi";
-
-    var tridy = "karta navsteva-karta nav-stav-" + n.stav +
-      " navsteva-skupina-" + skupina +
-      (jeNejblizsi ? " navsteva-nejblizsi" : "");
-    var html = '<article class="' + esc(tridy) + '" data-id="' + esc(n.id) + '">';
-
-    // 1) stavový řádek — kontrolka + termín + název stavu
-    html += '<div class="navsteva-stavradek">';
-    html += '<span class="navsteva-kontrolka" aria-hidden="true">' + esc(info.znak) + "</span>";
-
-    var vnitrek = '<span class="navsteva-termin-text">' +
-      (n.datum ? esc(formatDatumNavstevy(n)) : "datum neurčeno") + "</span>";
-    if (casText) vnitrek += '<span class="navsteva-cas">' + esc(casText) + "</span>";
-
-    if (prava.upravit) {
-      html += '<button type="button" class="navsteva-termin navsteva-termin-btn" data-nav-akce="prepnout-termin" ' +
-        'aria-expanded="' + (jeOtevrenyPanel(n.id, "termin") ? "true" : "false") + '" ' +
-        'title="Upravit termín a čas">' + vnitrek +
-        '<span class="navsteva-tuzka" aria-hidden="true">✎</span></button>';
-    } else {
-      html += '<span class="navsteva-termin">' + vnitrek + "</span>";
-    }
-
-    html += htmlOdpocet(n);
-    html += '<span class="navsteva-stav-nazev">' + esc(info.nazev) + "</span>";
-    if (jeOrientacni) html += '<span class="navsteva-orientacne">orientačně</span>';
-    if (jeNejblizsi) html += '<span class="navsteva-znacka-nejblizsi">nejbližší</span>';
-    html += "</div>";
-
-    if (jeOtevrenyPanel(n.id, "termin") && prava.upravit) html += htmlInlineTermin(n);
-
-    // 2) hlavička — číslo a název (klik otevře modál s plnou editací)
-    html += '<div class="karta-hlavicka"><h4 class="karta-nadpis">' +
-      '<button type="button" class="navsteva-nazev-btn" data-nav-akce="otevrit">' +
-      "č. " + esc(n.cislo) + " — " + esc(n.nazev) + "</button></h4></div>";
-
-    // 3) rychlý přehled — co nejméně řádků (stavbařům to bylo složité, 8. 10. 2026).
-    // Milník tu už není: název návštěvy ho nese a Plán stavby vidí jen náš tým.
-    if ((n.typ || []).length) {
-      html += '<div class="navsteva-typy">' + typChipy(n.typ) + "</div>";
-    }
-    html += '<div class="karta-meta">Za stavbu: ' + htmlZaStavbu(n, lide, true) +
-      " · Za nás: " + esc(jmenaOsobPodleId(n.za_nas, lide)) + "</div>";
-
-    html += htmlShotNaKarte(n, prava);
-
-    if (n.poznamka) {
-      html += '<p class="navsteva-poznamka">' + esc(n.poznamka) + "</p>";
-    }
-    if (zminujeCasosber(n.poznamka)) {
-      html += '<a class="navsteva-odkaz-casosber" href="#casosber">→ Časosběr</a>';
-    }
-
-    html += htmlKomentareNaKarte(n, aktivita, lide);
-
-    // 4) akce — posun stavu, úprava rovnou na kartě, detail jako záloha
-    var kroky = htmlKrokyStavu(n, prava);
-    html += '<div class="karta-akce navsteva-akce">' + kroky;
-    if (prava.upravit) {
-      html += '<button type="button" class="btn btn-mala btn-sekundarni" data-nav-akce="prepnout-editaci" ' +
-        'aria-expanded="' + (jeOtevrenyPanel(n.id, "editace") ? "true" : "false") + '">' +
-        (jeOtevrenyPanel(n.id, "editace") ? "Zavřít úpravy" : "Upravit tady") + "</button>";
-    }
-    html += "</div>";
-
-    // Celý editační formulář rovnou v kartě — stejná pole jako v detailu,
-    // jen se kvůli nim nemusí otevírat okno.
-    if (jeOtevrenyPanel(n.id, "editace") && prava.upravit) {
-      html += '<div class="navsteva-inline-panel">' + htmlFormularEditace(n, plan, lide) + "</div>";
-    }
-
-    if (jeOtevrenyPanel(n.id, "vraceni") && prava.schvalit) html += htmlInlineVraceni(n);
-
-    html += "</article>";
+    html += "</div></div></div></header>";
     return html;
   }
 
+  function htmlCeka(serazene, prava, dnes) {
+    var polozky = [];
+    serazene.forEach(function (n) {
+      var krok = krokCekani(n, prava, dnes, false);
+      if (krok) polozky.push({ n: n, krok: krok });
+    });
+    if (!polozky.length) return "";
+
+    var html = '<section class="nv-ceka" aria-label="Čeká na vás"><h3 class="nv-nadpis">Čeká na vás ' +
+      '<span class="nv-pocet">' + polozky.length + "</span></h3>";
+    polozky.slice(0, 5).forEach(function (p) {
+      var n = p.n;
+      html += '<div class="nv-ceka-polozka" data-id="' + esc(n.id) + '">' +
+        '<div class="nv-ceka-text"><span class="nv-cislo">#' + esc(n.cislo) + "</span> " +
+        '<span class="nv-ceka-nazev">' + esc(n.nazev) + "</span> " +
+        '<span class="nv-ceka-datum" title="' + esc(n.datum ? formatDatumNavstevy(n) : "datum neurčeno") + '">' +
+        esc(datumKratke(n)) + "</span>" +
+        '<span class="nv-ceka-veta">' + esc(p.krok.veta) + "</span></div>" +
+        '<button type="button" class="btn btn-primarni btn-mala" data-nav-akce="' + esc(p.krok.akce) + '">' +
+        esc(p.krok.text) + "</button></div>";
+    });
+    return html + "</section>";
+  }
+
+  function htmlPristi(n, lide, prava, dnes, ind) {
+    var cas = formatCasRozsah(n);
+    var html = '<section class="nv-pristi" data-id="' + esc(n.id) + '" aria-label="Příští návštěva">';
+    html += '<div class="nv-pristi-stitek">Příště</div>';
+
+    html += '<div class="nv-pristi-hlava"><div class="nv-pristi-datum' + (jePresne(n) ? "" : " nv-orientacne") + '">' +
+      esc(datumVelke(n)) + (cas ? '<span class="nv-pristi-cas">' + esc(cas) + "</span>" : "") + "</div>" +
+      htmlOdpocet(n) + "</div>";
+
+    html += '<div class="nv-pristi-nazev"><span class="nv-cislo">#' + esc(n.cislo) + "</span> " + esc(n.nazev) + "</div>";
+
+    html += '<div class="nv-pristi-meta">' + htmlStavChip(n.stav) + " " + htmlIkony(n.typ) +
+      ' <span class="nv-lide">Za stavbu: ' + htmlZaStavbu(n, lide, true) +
+      " · Za nás: " + esc(jmenaOsobPodleId(n.za_nas, lide)) + "</span></div>";
+
+    var body = n.co_se_toci || [];
+    if (body.length) {
+      html += '<div class="nv-pristi-podnadpis">Co se natočí</div><ul class="nv-body" aria-label="Co se natočí">';
+      body.forEach(function (p) {
+        html += '<li><label class="nv-bod"><input type="checkbox" name="shot-karta" data-polozka="' + esc(p.id) + '"' +
+          (p.hotovo ? " checked" : "") + (prava.body ? "" : " disabled") + "><span>" + esc(p.text) + "</span></label></li>";
+      });
+      html += "</ul>";
+    }
+
+    var posledni = ind.posledni[n.id];
+    if (posledni) {
+      var dalsich = (ind.pocet[n.id] || 1) - 1;
+      html += '<div class="nv-pristi-komentar"><strong>' + esc(jmenoAutora(posledni.kdo, lide)) + "</strong> " +
+        esc(zkrat(posledni.text, 160)) +
+        (dalsich > 0 ? ' <span class="nv-pristi-komentar-pocet">a další ' + dalsich + "</span>" : "") + "</div>";
+    }
+
+    var krok = krokCekani(n, prava, dnes, true);
+    html += '<div class="nv-pristi-akce">';
+    if (krok) {
+      html += '<button type="button" class="btn btn-primarni btn-mala" data-nav-akce="' + esc(krok.akce) + '">' +
+        esc(krok.text) + "</button>";
+    }
+    html += '<button type="button" class="btn btn-sekundarni btn-mala" data-nav-akce="otevrit">Otevřít</button></div>';
+
+    return html + "</section>";
+  }
+
+  // `poradi` (jen u Plánu): prvním třem řádkům celého plánu se připíše „za 7 dní“.
+  function htmlRadek(n, ind, poradi) {
+    var html = '<li class="nv-radek nv-stav-' + esc(n.stav) + '" data-id="' + esc(n.id) + '" tabindex="0" role="button" ' +
+      'aria-label="Otevřít návštěvu č. ' + esc(n.cislo) + " " + esc(n.nazev) + '">';
+    html += '<span class="nv-radek-datum' + (jePresne(n) ? "" : " nv-orientacne") + '" title="' +
+      esc(n.datum ? formatDatumNavstevy(n) : "datum neurčeno") + '">' + esc(datumKratke(n)) + "</span>";
+    html += '<span class="nv-radek-nazev"><span class="nv-cislo">#' + esc(n.cislo) + "</span> " + esc(n.nazev) + "</span>";
+    html += htmlIkony(n.typ);
+    var komentaru = ind.pocet[n.id] || 0;
+    if (komentaru > 0) {
+      html += '<span class="nv-bublina" title="Komentáře">' + komentaru + "</span>";
+    }
+    if (typeof poradi === "number" && poradi < 3) {
+      var za = textZa(n);
+      if (za) html += '<span class="nv-za">' + esc(za) + "</span>";
+    }
+    html += htmlStavChip(n.stav);
+    return html + "</li>";
+  }
+
+  function htmlPlan(zbyle, ind) {
+    if (!zbyle.length) return "";
+    var poradi = 0;
+    var html = '<section class="nv-plan" aria-label="Plán">';
+    // Každý rok ve vlastní skupině — lepivý nadpis roku pak drží jen nad
+    // svými návštěvami a s nimi i odjede, místo aby visel nad cizími.
+    skupinyPodleRoku(zbyle).forEach(function (skupina) {
+      html += '<div class="nv-skupina"><h3 class="nv-rok">' + esc(skupina.nadpis) + '</h3><ol class="nv-seznam">';
+      skupina.polozky.forEach(function (n) {
+        html += htmlRadek(n, ind, poradi);
+        poradi++;
+      });
+      html += "</ol></div>";
+    });
+    return html + "</section>";
+  }
+
+  function htmlProbehlo(hotove, ind) {
+    if (!hotove.length) return "";
+    var html = '<details class="nv-probehlo"' + (probehloOtevrene ? " open" : "") + ">" +
+      '<summary>Proběhlo <span class="nv-pocet">' + hotove.length + '</span></summary><ol class="nv-seznam">';
+    hotove.forEach(function (n) { html += htmlRadek(n, ind); });
+    return html + "</ol></details>";
+  }
+
   // ---- vykreslení sekce ----
+
+  // Náš tým = superadmin nebo osoba ze strany FD. Stavba (PORR, Metrostav)
+  // dostane klidnější pohled: plánování, termíny a mazání se jí neukazují.
+  // Práva (Auth.can) se tím nemění — jde jen o to, co se ukáže (Franta
+  // 8. 10. 2026: „na ty stavitele je to moc složité").
+  function jeNasTym() {
+    return !!(window.Auth && (Auth.role === "superadmin" ||
+      (window.App && typeof App.jsemZaFD === "function" && App.jsemZaFD())));
+  }
 
   function zjistiPrava() {
     function can(kod) {
       return !!(window.Auth && Auth.can && Auth.can(kod));
     }
+    var nas = jeNasTym();
     return {
-      pridat: can("navstevy.pridat"),
-      upravit: can("navstevy.upravit"),
+      pridat: can("navstevy.pridat") && nas,
+      // `upravit` = plánovat (stav, termín) — jen náš tým
+      upravit: can("navstevy.upravit") && nas,
+      // `body` = odškrtnout a přidat „Co se natočí" — smí i stavba s právem upravit
+      body: can("navstevy.upravit"),
       schvalit: can("navstevy.schvalit"),
-      mazat: can("navstevy.smazat")
+      mazat: can("navstevy.smazat") && nas
     };
   }
 
@@ -668,45 +723,34 @@
     posledniKontejner = cil;
 
     var lide = polozkyZeSouboru("lide");
-    var plan = polozkyZeSouboru("plan");
     var aktivita = polozkyZeSouboru("aktivita");
     var prava = zjistiPrava();
-    var seznam = filtrovaneNavstevy();
-    var nejblizsiId = idNejblizsiNavstevy();
-    var maNavrhy = ziveNavstevy().some(function (n) { return n.stav === "navrh"; });
+    var dnes = dnesniIso();
+    var zive = ziveNavstevy().slice().sort(porovnejNavstevy);
+    var ind = indexKomentaru(aktivita);
 
-    var html = '<div class="sekce-hlava"><h2>Návštěvy</h2><div class="karta-akce">';
-    html += '<button type="button" class="btn btn-sekundarni" data-nav-akce="kopirovat-plan">Kopírovat plán jako text</button>';
-    if (prava.upravit && maNavrhy) {
-      html += '<button type="button" class="btn btn-sekundarni" data-nav-akce="odeslat-vse">Odeslat celý návrh ke schválení</button>';
-    }
-    if (prava.pridat) {
-      html += '<button type="button" class="btn btn-primarni" data-nav-akce="pridat">+ Přidat návštěvu</button>';
-    }
-    html += "</div></div>";
-    html += htmlFiltry();
+    var pristi = nejblizsiNavsteva(zive, dnes);
+    var maNavrhy = zive.some(function (n) { return n.stav === "navrh"; });
+    var zbyle = zive.filter(function (n) {
+      return !jeDokoncena(n) && !(pristi && n.id === pristi.id);
+    });
+    var hotove = zive.filter(jeDokoncena).sort(porovnejSestupne);
 
-    if (!seznam.length) {
+    var html = '<div class="nv">' + htmlHlava(prava, maNavrhy);
+    if (!zive.length) {
       html += '<div class="prazdny-stav"><span class="prazdny-stav-ikona" aria-hidden="true"></span>' +
-        '<p class="prazdny-stav-text">V tomto filtru nejsou žádné návštěvy.</p></div>';
+        '<p class="prazdny-stav-text">Zatím tu nejsou žádné návštěvy' +
+        (prava.pridat ? " — přidejte první tlačítkem „+ Návštěva“." : ".") + "</p></div>";
     } else {
-      skupinyPodleRoku(seznam).forEach(function (skupina) {
-        html += '<h3 class="navstevy-rok">' + esc(skupina.nadpis) +
-          '<span class="navstevy-rok-pocet">' + skupina.polozky.length + "</span></h3>";
-        html += '<div class="karty-mrizka navstevy-mrizka">' +
-          skupina.polozky.map(function (n) {
-            return htmlKarta(n, lide, plan, prava, n.id === nejblizsiId, aktivita);
-          }).join("") + "</div>";
-      });
+      html += htmlCeka(zive.filter(function (n) { return !pristi || n.id !== pristi.id; }), prava, dnes);
+      if (pristi) html += htmlPristi(pristi, lide, prava, dnes, ind);
+      html += htmlPlan(zbyle, ind);
+      html += htmlProbehlo(hotove, ind);
     }
+    html += "</div>";
 
     cil.innerHTML = html;
     napojPosluchace(cil);
-    // Výběr lidí k označení patří k otevřenému komentáři na kartě stejně jako
-    // k tomu v detailu — jinak by se v kartě nedalo nikoho zmínit.
-    if (panelOtevreny && panelOtevreny.druh === "komentar") {
-      dopluVyberZminek(cil.querySelector('[data-id="' + panelOtevreny.id + '"]'));
-    }
     vratFokus(cil);
   }
 
@@ -760,11 +804,11 @@
     toastBezpecne((e && (e.hlaska || e.message)) || "Uložení se nepovedlo.", "chyba");
   }
 
-  // ---- vlastní jednoduchý modál (dialog), stejný vzor jako ve view-lide.js ----
+  // ---- vlastní jednoduchý dialog (boční panel), základ jako ve view-lide.js ----
 
   function otevriModal(nadpis, obsahUzel) {
     var dlg = document.createElement("dialog");
-    dlg.className = "modal-okno";
+    dlg.className = "modal-okno nv-panel";
 
     var hlavicka = document.createElement("div");
     hlavicka.className = "modal-hlavicka";
@@ -801,7 +845,7 @@
     return { dlg: dlg, zavri: zavri };
   }
 
-  // ---- stavba HTML detailu (modál) ----
+  // ---- stavba HTML detailu (boční panel) ----
 
   function htmlOsazeniPole(nazevPole, vybraneIds, lide, popisek) {
     // „Za nás" = jen náš tým (strana FD), „Za stavbu" = investor a zhotovitel.
@@ -826,23 +870,45 @@
     return html;
   }
 
-  // Termín a čas se v modálu už needitují — mají vlastní rychlou editaci
-  // přímo na kartě v seznamu. Tady se jen vypíšou, ať je detail úplný.
-  function htmlTerminVDetailu(n) {
+  // Termín a čas se upravují přímo v panelu (sekce „Termín“) a ukládají se
+  // hned po každé změně pole (viz change posluchač v napojPosluchaceDetail).
+  // Ostatním se jen vypíše text data a času.
+  function htmlTerminPanel(n, smiUpravit) {
     var info = stavInfo(n.stav);
     var presnost = n.datum_presnost || "presne";
-    var jeOrientacni = !!n.datum && (info.orientacne || presnost === "mesic" || presnost === "obdobi");
-    var casText = formatCasRozsah(n);
 
-    var html = '<div class="navsteva-stavradek navsteva-stavradek-detail nav-stav-' + esc(n.stav) + '">';
-    html += '<span class="navsteva-kontrolka" aria-hidden="true">' + esc(info.znak) + "</span>";
-    html += '<span class="navsteva-termin"><span class="navsteva-termin-text">' +
-      (n.datum ? esc(formatDatumNavstevy(n)) : "datum neurčeno") + "</span>" +
-      (casText ? '<span class="navsteva-cas">' + esc(casText) + "</span>" : "") + "</span>";
-    html += '<span class="navsteva-stav-nazev">' + esc(info.nazev) + "</span>";
-    if (jeOrientacni) html += '<span class="navsteva-orientacne">orientačně</span>';
+    if (!smiUpravit) {
+      var jeOrientacni = !!n.datum && (info.orientacne || presnost === "mesic" || presnost === "obdobi");
+      var casText = formatCasRozsah(n);
+      return '<p class="karta-meta">' + esc(n.datum ? formatDatumNavstevy(n) : "datum neurčeno") +
+        (casText ? " · " + esc(casText) : "") + (jeOrientacni ? " · orientačně" : "") + "</p>";
+    }
+
+    var id = esc(n.id);
+    var html = '<div class="formular" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 12px">';
+
+    html += '<div class="pole"><label for="itd-' + id + '">Datum</label>' +
+      '<input id="itd-' + id + '" name="inline-datum" type="date" value="' + esc(n.datum || "") + '"></div>';
+
+    html += '<div class="pole"><label for="itp-' + id + '">Přesnost</label>' +
+      '<select id="itp-' + id + '" name="inline-presnost">';
+    PRESNOSTI.forEach(function (p) {
+      html += '<option value="' + p[0] + '"' + (presnost === p[0] ? " selected" : "") + ">" + esc(p[1]) + "</option>";
+    });
+    html += "</select></div>";
+
+    if (presnost === "obdobi") {
+      html += '<div class="pole"><label for="itdd-' + id + '">Období do</label>' +
+        '<input id="itdd-' + id + '" name="inline-datum-do" type="date" value="' + esc(n.datum_do || "") + '"></div>';
+    }
+
+    html += '<div class="pole"><label for="itco-' + id + '">Čas od</label>' +
+      '<input id="itco-' + id + '" name="inline-cas-od" type="time" value="' + esc(n.cas_od || "") + '"></div>';
+    html += '<div class="pole"><label for="itcd-' + id + '">Čas do</label>' +
+      '<input id="itcd-' + id + '" name="inline-cas-do" type="time" value="' + esc(n.cas_do || "") + '"></div>';
+
     html += "</div>";
-    html += '<p class="navsteva-inline-napoveda">Termín, čas a posun stavu se upravují přímo na kartě v seznamu.</p>';
+    html += '<p class="karta-meta">Každá změna se uloží hned.</p>';
     return html;
   }
 
@@ -897,9 +963,11 @@
     return html;
   }
 
-  function htmlShotList(n, smiUpravit) {
+  // `bezNadpisu` (boční panel): nadpis „Co se natočí“ dodá sekce panelu.
+  function htmlShotList(n, smiUpravit, bezNadpisu) {
     var polozky = n.co_se_toci || [];
-    var html = '<div class="oddil"><h3 class="nadpis-sekce" style="font-size:1rem">Co se natočí</h3>';
+    var html = '<div class="oddil">' +
+      (bezNadpisu ? "" : '<h3 class="nadpis-sekce" style="font-size:1rem">Co se natočí</h3>');
     if (!polozky.length) {
       html += '<p class="podnadpis-sekce" style="margin:0">Zatím žádné položky.</p>';
     } else {
@@ -931,10 +999,15 @@
     return html;
   }
 
-  function htmlSchvalovani(n, smiSchvalit, smiUpravit, lide) {
-    var html = '<div class="oddil"><h3 class="nadpis-sekce" style="font-size:1rem">Schvalování</h3>';
-    html += '<p class="karta-meta">Aktuální stav: <span class="stitek nav-stav-' + esc(n.stav) + '">' +
-      esc(stavNazev(n.stav)) + "</span></p>";
+  // `kompaktne` (boční panel): bez nadpisu „Schvalování“ a řádku „Aktuální
+  // stav“ — stav je nahoře v panelu jako chip hned vedle tlačítek.
+  function htmlSchvalovani(n, smiSchvalit, smiUpravit, lide, kompaktne) {
+    var html = '<div class="oddil">';
+    if (!kompaktne) {
+      html += '<h3 class="nadpis-sekce" style="font-size:1rem">Schvalování</h3>';
+      html += '<p class="karta-meta">Aktuální stav: <span class="stitek nav-stav-' + esc(n.stav) + '">' +
+        esc(stavNazev(n.stav)) + "</span></p>";
+    }
 
     if (n.schvaleni && n.schvaleni.kdo) {
       var schvalil = najdiPodleId(lide, n.schvaleni.kdo);
@@ -982,13 +1055,15 @@
     return '<p class="karta-meta zminky-radek">' + esc(text) + "</p>";
   }
 
-  function htmlKomentare(n, aktivita, lide, smiKomentovat, smiMazatCizi) {
+  // `bezNadpisu` (boční panel): nadpis „Komentáře“ dodá sekce panelu.
+  function htmlKomentare(n, aktivita, lide, smiKomentovat, smiMazatCizi, bezNadpisu) {
     var mojeId = (window.Auth && Auth.ja && Auth.ja.id) || null;
     var seznam = aktivita.filter(function (a) {
       return !a.smazano && a.druh === "komentar" && a.entita === "navsteva" && a.entita_id === n.id;
     }).slice().sort(function (a, b) { return String(b.kdy).localeCompare(String(a.kdy)); });
 
-    var html = '<div class="oddil"><h3 class="nadpis-sekce" style="font-size:1rem">Komentáře</h3>';
+    var html = '<div class="oddil">' +
+      (bezNadpisu ? "" : '<h3 class="nadpis-sekce" style="font-size:1rem">Komentáře</h3>');
     if (!seznam.length) {
       html += '<p class="podnadpis-sekce" style="margin:0 0 10px">Zatím žádné komentáře.</p>';
     } else {
@@ -1032,27 +1107,48 @@
     return html;
   }
 
+  // Boční panel: nahoře stav + schvalovací tlačítka (nejdůležitější), pak
+  // Termín, Co se natočí, Komentáře, Podrobnosti a nebezpečná zóna.
   function htmlDetail(n) {
     var plan = polozkyZeSouboru("plan");
     var lide = polozkyZeSouboru("lide");
     var aktivita = polozkyZeSouboru("aktivita");
-    var smiUpravit = !!(window.Auth && Auth.can && Auth.can("navstevy.upravit"));
-    var smiSchvalit = !!(window.Auth && Auth.can && Auth.can("navstevy.schvalit"));
-    var smiMazat = !!(window.Auth && Auth.can && Auth.can("navstevy.smazat"));
+    var prava = zjistiPrava();
+    var smiUpravit = prava.upravit;          // termín, stav, podrobnosti — náš tým
+    var smiBody = prava.body;                // „Co se natočí" — i stavba
+    var smiSchvalit = prava.schvalit;
+    var smiMazat = prava.mazat;
     var smiKomentovat = !!(window.Auth && Auth.can && Auth.can("komentare.pridat"));
     var smiMazatCizi = !!(window.Auth && Auth.can && Auth.can("komentare.smazat.cizi"));
+    var upravujeSe = smiUpravit && detailUpravy;
 
-    var html = '<p class="karta-meta">Návštěva č. ' + n.cislo + "</p>";
-    html += htmlTerminVDetailu(n);
-    html += smiUpravit ? htmlFormularEditace(n, plan, lide) : htmlDetailCteni(n, plan, lide);
-    html += htmlShotList(n, smiUpravit);
-    html += htmlSchvalovani(n, smiSchvalit, smiUpravit, lide);
-    html += htmlKomentare(n, aktivita, lide, smiKomentovat, smiMazatCizi);
+    var html = '<div class="nv-panel-akce">' + htmlStavChip(n.stav) +
+      htmlSchvalovani(n, smiSchvalit, smiUpravit, lide, true) + "</div>";
+
+    html += '<section class="nv-panel-sekce"><h3>Termín</h3>' + htmlTerminPanel(n, smiUpravit) + "</section>";
+
+    html += '<section class="nv-panel-sekce"><h3>Co se natočí</h3>' + htmlShotList(n, smiBody, true) + "</section>";
+
+    html += '<section class="nv-panel-sekce"><h3>Komentáře</h3>' +
+      htmlKomentare(n, aktivita, lide, smiKomentovat, smiMazatCizi, true) + "</section>";
+
+    html += '<section class="nv-panel-sekce"><h3>Podrobnosti</h3>';
+    html += upravujeSe ? htmlFormularEditace(n, plan, lide) : htmlDetailCteni(n, plan, lide);
+    if (zminujeCasosber(n.poznamka)) {
+      html += '<p class="karta-meta"><a href="#casosber" data-nav-akce="zavrit-panel">→ Časosběr</a></p>';
+    }
+    if (smiUpravit) {
+      html += '<div class="karta-akce"><button type="button" id="nd-upravit-detaily" class="btn btn-tiche btn-mala" ' +
+        'data-nav-akce="upravit-detaily" aria-expanded="' + (upravujeSe ? "true" : "false") + '">' +
+        (upravujeSe ? "Zrušit úpravy" : "Upravit") + "</button></div>";
+    }
+    html += "</section>";
+
     html += htmlNebezpecnaZona(n, smiMazat);
     return html;
   }
 
-  // ---- modál — otevření / překreslení ----
+  // ---- panel — otevření / překreslení ----
 
   // Detail se vykresluje jedním innerHTML, ale výběr lidí k označení je
   // živý prvek z Util.vyberZminek — proto se po každém překreslení vloží
@@ -1071,22 +1167,28 @@
     misto.appendChild(vyberZminekKomentare.prvek);
   }
 
+  function nadpisPanelu(n) {
+    return "#" + n.cislo + " " + n.nazev;
+  }
+
   function otevriDetail(id) {
     var n = najdiPodleId(polozkyZeSouboru("navstevy"), id);
     if (!n) return;
     idOtevrenehoDetailu = id;
+    detailUpravy = false;
 
     modalObsahUzel = document.createElement("div");
     napojPosluchaceDetail(modalObsahUzel);
     modalObsahUzel.innerHTML = htmlDetail(n);
     dopluVyberZminek(modalObsahUzel);
 
-    modalRef = otevriModal("Návštěva — " + n.nazev, modalObsahUzel);
+    modalRef = otevriModal(nadpisPanelu(n), modalObsahUzel);
     modalRef.dlg.addEventListener("close", function () {
       idOtevrenehoDetailu = null;
       modalObsahUzel = null;
       modalRef = null;
       vyberZminekKomentare = null;
+      detailUpravy = false;
     });
   }
 
@@ -1097,8 +1199,29 @@
       if (modalRef) modalRef.zavri();
       return;
     }
+    // Termín se ukládá po každé změně pole a panel se kvůli tomu překreslí —
+    // fokus se proto vrací na stejný prvek (pole mají id), ať se dá
+    // klávesnicí plynule pokračovat.
+    var aktivni = document.activeElement;
+    var aktivniId = aktivni && aktivni.id && modalObsahUzel.contains(aktivni) ? aktivni.id : null;
+
     modalObsahUzel.innerHTML = htmlDetail(n);
     dopluVyberZminek(modalObsahUzel);
+
+    if (modalRef && modalRef.dlg) {
+      var h = modalRef.dlg.querySelector(".modal-nadpis");
+      if (h) h.textContent = nadpisPanelu(n);
+    }
+    if (aktivniId) {
+      var el = document.getElementById(aktivniId);
+      if (el && modalObsahUzel.contains(el) && typeof el.focus === "function") {
+        try {
+          el.focus({ preventScroll: true });
+        } catch (chyba) {
+          el.focus();
+        }
+      }
+    }
   }
 
   // ---- mutace dat ----
@@ -1145,7 +1268,6 @@
 
   function vratitDoNavrhu(id, poznamkaText) {
     var cislo = cisloNavstevy(id);
-    panelOtevreny = null;
     transakce(id, function (n) {
       n.stav = "navrh";
       n.schvaleni = { kdo: null, kdy: null, poznamka: poznamkaText };
@@ -1168,8 +1290,6 @@
     }, "Smazána návštěva č. " + cisloNavstevy(id))
       .then(function (obsah) {
         if (window.App && typeof App.uloz === "function") App.uloz("navstevy", obsah);
-        if (panelOtevreny && panelOtevreny.id === id) panelOtevreny = null;
-        delete shotOtevrene[id];
         vykresli(posledniKontejner);
         if (modalRef) modalRef.zavri();
       })
@@ -1254,8 +1374,9 @@
     el.textContent = text;
   }
 
-  // Formulář v modálu už NEobsahuje datum/přesnost/čas — ta pole se editují
-  // inline na kartě, takže se tu ani nesmí přepisovat (jinak by se vynulovala).
+  // Formulář úprav (sekce „Podrobnosti“) NEobsahuje datum/přesnost/čas — ta pole
+  // se editují zvlášť v sekci „Termín“ panelu, takže se tu ani nesmí přepisovat
+  // (jinak by se vynulovala).
   function ulozitZmeny(id, form) {
     var fd = new FormData(form);
     var nazev = String(fd.get("nazev") || "").trim();
@@ -1294,7 +1415,10 @@
         // Po uložení okno zavřít a říct to nahlas. Bez toho detail zůstal
         // otevřený a beze změny — vypadalo to, že se návštěva nedá upravit,
         // i když se data v pořádku uložila.
-        if (modalRef && modalRef.dlg && modalRef.dlg.open) modalRef.dlg.close();
+        // Panel po uložení zůstane otevřený a ukáže uložené podrobnosti —
+        // zavřít ho je zbytečný krok navíc, když člověk chce pokračovat.
+        detailUpravy = false;
+        prekresliDetail();
         if (window.App && typeof App.toast === "function") {
           App.toast("Návštěva uložena.", "ok");
         }
@@ -1375,7 +1499,46 @@
     return karta ? karta.dataset.id : null;
   }
 
+  // Menu ⋯ v hlavičce — otevření/zavření (hidden + aria-expanded).
+  function zavriMenu(vratitFokus) {
+    if (!posledniKontejner) return;
+    var seznam = posledniKontejner.querySelector(".nv-menu-seznam");
+    var tlacitko = posledniKontejner.querySelector(".nv-menu-btn");
+    if (seznam) seznam.hidden = true;
+    if (tlacitko) {
+      tlacitko.setAttribute("aria-expanded", "false");
+      if (vratitFokus) tlacitko.focus();
+    }
+  }
+
+  function prepniMenu(tlacitko) {
+    var menu = tlacitko.closest(".nv-menu");
+    var seznam = menu ? menu.querySelector(".nv-menu-seznam") : null;
+    if (!seznam) return;
+    var otevrit = seznam.hidden;
+    seznam.hidden = !otevrit;
+    tlacitko.setAttribute("aria-expanded", otevrit ? "true" : "false");
+  }
+
+  // Klik mimo menu a Esc ho zavřou. Posluchače jsou na dokumentu (menu se
+  // při každém překreslení vytváří znovu), proto se věší jen jednou.
+  function napojMenuNaDokument() {
+    if (menuNapojeno) return;
+    menuNapojeno = true;
+    document.addEventListener("click", function (e) {
+      if (e.target && e.target.closest && e.target.closest(".nv-menu")) return;
+      zavriMenu(false);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" && e.key !== "Esc") return;
+      var seznam = posledniKontejner ? posledniKontejner.querySelector(".nv-menu-seznam") : null;
+      if (!seznam || seznam.hidden) return;
+      zavriMenu(true);
+    });
+  }
+
   function napojPosluchace(cil) {
+    napojMenuNaDokument();
     if (cil._navstevyNapojeno) return;
     cil._navstevyNapojeno = true;
 
@@ -1383,23 +1546,21 @@
       if (cil.dataset.aktivniSekce !== "navstevy") return;
       var prvek = e.target.closest("[data-nav-akce]");
       if (!prvek) {
-        // Klik kamkoli do karty (mimo ovládací prvky) otevře detail. Lidé
-        // klikají na kartu, ne na drobné „Detail…" v rohu — bez tohohle to
-        // působí, jako by se návštěva nedala upravovat.
-        var karta = e.target.closest("article[data-id]");
-        if (!karta) return;
+        // Klik na řádek plánu, kartu „Příště“ nebo text v pruhu „Čeká na vás“
+        // (mimo ovládací prvky) otevře detail v bočním panelu.
+        var oblast = e.target.closest(".nv-radek, .nv-pristi, .nv-ceka-text");
+        if (!oblast) return;
         if (e.target.closest("button, a, input, select, textarea, label, summary")) return;
-        otevriDetail(karta.dataset.id);
+        var idOblasti = idKarty(oblast);
+        if (idOblasti) otevriDetail(idOblasti);
         return;
       }
       var akce = prvek.dataset.navAkce;
 
-      if (akce === "filtr") {
-        filtrAktualni = prvek.dataset.filtr;
-        panelOtevreny = null;
-        vykresli(posledniKontejner);
-        return;
-      }
+      if (akce === "menu") { prepniMenu(prvek); return; }
+      // Po výběru položky se menu zavře (ještě před případným potvrzením).
+      if (prvek.closest(".nv-menu-seznam")) zavriMenu(false);
+
       if (akce === "pridat") { pridatNavstevu(); return; }
       if (akce === "odeslat-vse") { odeslatVseKeSchvaleni(); return; }
       if (akce === "kopirovat-plan") { kopirovatPlan(); return; }
@@ -1409,13 +1570,6 @@
 
       if (akce === "otevrit") {
         otevriDetail(id);
-      } else if (akce === "prepnout-termin") {
-        nastavPanel(id, "termin");
-        if (jeOtevrenyPanel(id, "termin")) fokusPo = '[data-id="' + id + '"] [name="inline-datum"]';
-        vykresli(posledniKontejner);
-      } else if (akce === "zavrit-panel") {
-        panelOtevreny = null;
-        vykresli(posledniKontejner);
       } else if (akce === "stav-odeslat") {
         odeslatKeSchvaleni(id);
       } else if (akce === "stav-schvalit") {
@@ -1424,110 +1578,42 @@
         potvrditTermin(id);
       } else if (akce === "stav-probehlo") {
         oznacitProbehlo(id);
-      } else if (akce === "prepnout-komentar") {
-        nastavPanel(id, "komentar");
-        if (jeOtevrenyPanel(id, "komentar")) fokusPo = '[data-id="' + id + '"] [name="text"]';
-        vykresli(posledniKontejner);
-      } else if (akce === "prepnout-editaci") {
-        nastavPanel(id, "editace");
-        if (jeOtevrenyPanel(id, "editace")) fokusPo = '[data-id="' + id + '"] [name="nazev"]';
-        vykresli(posledniKontejner);
-      } else if (akce === "stav-vratit") {
-        nastavPanel(id, "vraceni");
-        if (jeOtevrenyPanel(id, "vraceni")) fokusPo = '[data-id="' + id + '"] [name="inline-vraceni"]';
-        vykresli(posledniKontejner);
-      } else if (akce === "potvrdit-vraceni-karta") {
-        var karta = prvek.closest("[data-id]");
-        var pole = karta ? karta.querySelector('[name="inline-vraceni"]') : null;
-        var chybaEl = karta ? karta.querySelector(".navsteva-inline-chyba") : null;
-        var text = pole ? pole.value.trim() : "";
-        if (text.length < 3) {
-          if (chybaEl) {
-            chybaEl.hidden = false;
-            chybaEl.textContent = "Napiš prosím alespoň 3 znaky.";
-          }
-          if (pole) pole.focus();
-          return;
-        }
-        vratitDoNavrhu(id, text);
       }
     });
 
-    // Formuláře rovnou v kartě (úprava návštěvy, komentář). Detail má vlastní
-    // posluchač v napojPosluchaceDetail — tenhle je jen pro seznam.
-    cil.addEventListener("submit", function (e) {
+    // Enter / mezerník na řádku plánu = otevřít detail (řádek je role="button").
+    cil.addEventListener("keydown", function (e) {
       if (cil.dataset.aktivniSekce !== "navstevy") return;
-      var form = e.target;
-      if (!form.matches || !form.matches("[data-nav-akce-form]")) return;
+      if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+      var radek = e.target;
+      if (!radek || !radek.classList || !radek.classList.contains("nv-radek")) return;
       e.preventDefault();
-      var idFormulare = idKarty(form);
-      if (!idFormulare) return;
-      var typAkce = form.dataset.navAkceForm;
-
-      if (typAkce === "ulozit-zmeny") {
-        panelOtevreny = null;
-        ulozitZmeny(idFormulare, form);
-      } else if (typAkce === "pridat-komentar") {
-        var pole = form.querySelector('[name="text"]');
-        var txt = pole ? pole.value.trim() : "";
-        var oznaceni = vyberZminekKomentare ? vyberZminekKomentare.vybrane() : [];
-        if (!txt) return;
-        panelOtevreny = null;
-        pridatKomentarZaznam(idFormulare, txt, oznaceni).catch(poChybe);
-      }
+      if (radek.dataset.id) otevriDetail(radek.dataset.id);
     });
 
-    // Inline editace termínu a zaškrtávání shot listu — ukládá se hned.
+    // Odškrtávání bodů „Co se natočí“ na kartě „Příště“ — ukládá se hned.
     cil.addEventListener("change", function (e) {
       if (cil.dataset.aktivniSekce !== "navstevy") return;
       var t = e.target;
-      if (!t || !t.name) return;
+      if (!t || t.name !== "shot-karta") return;
       var id = idKarty(t);
-      if (!id) return;
-
-      var navsteva = najdiPodleId(polozkyZeSouboru("navstevy"), id);
-      if (!navsteva) return;
-
-      if (t.name === "shot-karta") {
-        shotPrepnout(id, t.dataset.polozka);
-        return;
-      }
-
-      fokusPo = '[data-id="' + id + '"] [name="' + t.name + '"]';
-
-      if (t.name === "inline-datum") {
-        ulozTermin(id, { datum: t.value || null });
-      } else if (t.name === "inline-presnost") {
-        var presnost = t.value || "presne";
-        var zmeny = { datum_presnost: presnost };
-        // "období" potřebuje druhý konec; u ostatních přesností nedává smysl.
-        zmeny.datum_do = presnost === "obdobi" ? (navsteva.datum_do || navsteva.datum || null) : null;
-        ulozTermin(id, zmeny);
-      } else if (t.name === "inline-datum-do") {
-        ulozTermin(id, { datum_do: t.value || null });
-      } else if (t.name === "inline-cas-od") {
-        ulozTermin(id, { cas_od: t.value || null });
-      } else if (t.name === "inline-cas-do") {
-        ulozTermin(id, { cas_do: t.value || null });
-      }
+      if (!id || !najdiPodleId(polozkyZeSouboru("navstevy"), id)) return;
+      var polozka = t.dataset.polozka;
+      fokusPo = '[data-id="' + id + '"] [data-polozka="' + String(polozka).replace(/["\\]/g, "\\$&") + '"]';
+      shotPrepnout(id, polozka);
     });
 
-    // <details> shot listu na kartě — "toggle" nebublá, proto zachytávání.
+    // <details> „Proběhlo“ — "toggle" nebublá, proto zachytávání. Stav se drží
+    // v modulu, ať se seznam po každém zápisu dat znovu nesbalí.
     cil.addEventListener("toggle", function (e) {
       if (cil.dataset.aktivniSekce !== "navstevy") return;
       var det = e.target;
-      if (!det || !det.classList || !det.classList.contains("navsteva-shot")) return;
-      var id = idKarty(det);
-      if (!id) return;
-      if (det.open) {
-        shotOtevrene[id] = true;
-      } else {
-        delete shotOtevrene[id];
-      }
+      if (!det || !det.classList || !det.classList.contains("nv-probehlo")) return;
+      probehloOtevrene = !!det.open;
     }, true);
   }
 
-  // ---- posluchače v modálu ----
+  // ---- posluchače v bočním panelu ----
 
   function napojPosluchaceDetail(obsahUzel) {
     obsahUzel.addEventListener("click", function (e) {
@@ -1539,6 +1625,17 @@
 
       if (akce === "shot-smazat") {
         shotSmazat(id, prvek.dataset.polozka);
+      } else if (akce === "upravit-detaily") {
+        // Sekce „Podrobnosti“: přepíná čtení <-> formulář úprav.
+        detailUpravy = !detailUpravy;
+        prekresliDetail();
+        if (detailUpravy) {
+          var pole = obsahUzel.querySelector('[name="nazev"]');
+          if (pole) pole.focus();
+        }
+      } else if (akce === "zavrit-panel") {
+        // Odkaz „→ Časosběr“: panel se zavře, přechod na #casosber proběhne sám.
+        if (modalRef) modalRef.zavri();
       } else if (akce === "odeslat-ke-schvaleni") {
         odeslatKeSchvaleni(id);
       } else if (akce === "schvalit") {
@@ -1587,8 +1684,33 @@
 
     obsahUzel.addEventListener("change", function (e) {
       if (!idOtevrenehoDetailu) return;
-      if (e.target.matches && e.target.matches('[data-nav-akce="shot-prepnout"]')) {
-        shotPrepnout(idOtevrenehoDetailu, e.target.dataset.polozka);
+      var t = e.target;
+      if (!t) return;
+      if (t.matches && t.matches('[data-nav-akce="shot-prepnout"]')) {
+        shotPrepnout(idOtevrenehoDetailu, t.dataset.polozka);
+        return;
+      }
+
+      // Termín a čas v sekci „Termín“ — každá změna pole se ukládá hned.
+      if (!t.name || t.name.indexOf("inline-") !== 0) return;
+      var id = idOtevrenehoDetailu;
+      var navsteva = najdiPodleId(polozkyZeSouboru("navstevy"), id);
+      if (!navsteva) return;
+
+      if (t.name === "inline-datum") {
+        ulozTermin(id, { datum: t.value || null });
+      } else if (t.name === "inline-presnost") {
+        var presnost = t.value || "presne";
+        var zmeny = { datum_presnost: presnost };
+        // "období" potřebuje druhý konec; u ostatních přesností nedává smysl.
+        zmeny.datum_do = presnost === "obdobi" ? (navsteva.datum_do || navsteva.datum || null) : null;
+        ulozTermin(id, zmeny);
+      } else if (t.name === "inline-datum-do") {
+        ulozTermin(id, { datum_do: t.value || null });
+      } else if (t.name === "inline-cas-od") {
+        ulozTermin(id, { cas_od: t.value || null });
+      } else if (t.name === "inline-cas-do") {
+        ulozTermin(id, { cas_do: t.value || null });
       }
     });
 
