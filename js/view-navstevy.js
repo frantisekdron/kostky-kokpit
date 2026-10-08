@@ -109,6 +109,11 @@
   var fokusPo = null;
   // Boční panel: true = v sekci „Podrobnosti“ je místo čtení formulář úprav.
   var detailUpravy = false;
+  // Komentář psaný rovnou na kartě „Příště“ (Franta 8. 10. 2026): je formulář
+  // otevřený a co je v něm rozepsané — data se obnovují samy a karta se
+  // překresluje, rozepsaný text se nesmí ztratit.
+  var komentarVPristi = false;
+  var komentarVPristiText = "";
   // Menu ⋯ v hlavičce — dokumentové posluchače (klik mimo, Esc) se věší jen jednou.
   var menuNapojeno = false;
 
@@ -408,6 +413,26 @@
     return MESICE_NOM[p.mesic - 1];
   }
 
+  var MESICE_ZKR = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"];
+
+  // Měsíc v rámečku jako lísteček z kalendáře. Přesné datum = plný rámeček
+  // s dnem, orientační termín = čárkovaný rámeček jen s měsícem.
+  function htmlDlazdice(n) {
+    var p = rozdelIso(n.datum);
+    var titulek = n.datum ? formatDatumNavstevy(n) + (jePresne(n) ? "" : " (orientačně)") : "datum neurčeno";
+    if (!p) {
+      return '<span class="nv-dlazdice nv-dlazdice-orientacni" title="' + esc(titulek) + '">' +
+        '<span class="nv-dlazdice-mesic">—</span><span class="nv-dlazdice-den">?</span></span>';
+    }
+    if (!jePresne(n)) {
+      return '<span class="nv-dlazdice nv-dlazdice-orientacni" title="' + esc(titulek) + '">' +
+        '<span class="nv-dlazdice-mesic">' + esc(MESICE_ZKR[p.mesic - 1]) + "</span></span>";
+    }
+    return '<span class="nv-dlazdice" title="' + esc(titulek) + '">' +
+      '<span class="nv-dlazdice-mesic">' + esc(MESICE_ZKR[p.mesic - 1]) + "</span>" +
+      '<span class="nv-dlazdice-den">' + p.den + "</span></span>";
+  }
+
   // „za 7 dní“ / „za 2 měs.“ / „za 1 rok“ (a „před …“ pro zpožděné návštěvy).
   function textZa(n) {
     if (!n.datum) return "";
@@ -633,60 +658,83 @@
         (dalsich > 0 ? ' <span class="nv-pristi-komentar-pocet">a další ' + dalsich + "</span>" : "") + "</div>";
     }
 
+    var smiKomentovat = !!(window.Auth && Auth.can && Auth.can("komentare.pridat"));
     var krok = krokCekani(n, prava, dnes, true);
     html += '<div class="nv-pristi-akce">';
     if (krok) {
       html += '<button type="button" class="btn btn-primarni btn-mala" data-nav-akce="' + esc(krok.akce) + '">' +
         esc(krok.text) + "</button>";
     }
-    html += '<button type="button" class="btn btn-sekundarni btn-mala" data-nav-akce="otevrit">Otevřít</button></div>';
+    if (smiKomentovat && !komentarVPristi) {
+      html += '<button type="button" class="btn btn-sekundarni btn-mala" data-nav-akce="pristi-komentar">Komentář</button>';
+    }
+    html += '<button type="button" class="btn btn-tiche btn-mala" data-nav-akce="otevrit">Otevřít</button></div>';
+
+    // Formulář komentáře přímo v kartě — bez prokliku do panelu.
+    if (smiKomentovat && komentarVPristi) {
+      html += '<form class="nv-pristi-form" data-nav-akce-form="pristi-komentar">' +
+        '<textarea name="text" rows="2" required placeholder="Napište komentář…" aria-label="Komentář k návštěvě">' +
+        esc(komentarVPristiText) + "</textarea>" +
+        "<div data-zminky-misto></div>" +
+        '<div class="nv-pristi-form-akce"><button type="submit" class="btn btn-primarni btn-mala">Odeslat</button>' +
+        '<button type="button" class="btn btn-tiche btn-mala" data-nav-akce="pristi-komentar-zrusit">Zrušit</button></div>' +
+        "</form>";
+    }
 
     return html + "</section>";
   }
 
-  // `poradi` (jen u Plánu): prvním třem řádkům celého plánu se připíše „za 7 dní“.
-  function htmlRadek(n, ind, poradi) {
+  // Řádek tabulky: rámeček s měsícem | název | (typ, komentáře, kdy, stav).
+  // Druhá část je v obalu .nv-radek-meta — na počítači se rozpadne do sloupců
+  // tabulky (display: contents), na mobilu z něj je druhý řádek pod názvem.
+  function htmlRadek(n, ind) {
     var html = '<li class="nv-radek nv-stav-' + esc(n.stav) + '" data-id="' + esc(n.id) + '" tabindex="0" role="button" ' +
       'aria-label="Otevřít návštěvu č. ' + esc(n.cislo) + " " + esc(n.nazev) + '">';
-    html += '<span class="nv-radek-datum' + (jePresne(n) ? "" : " nv-orientacne") + '" title="' +
-      esc(n.datum ? formatDatumNavstevy(n) : "datum neurčeno") + '">' + esc(datumKratke(n)) + "</span>";
+    html += htmlDlazdice(n);
     html += '<span class="nv-radek-nazev"><span class="nv-cislo">#' + esc(n.cislo) + "</span> " + esc(n.nazev) + "</span>";
-    html += htmlIkony(n.typ);
+    html += '<span class="nv-radek-meta">' + htmlIkony(n.typ);
     var komentaru = ind.pocet[n.id] || 0;
-    if (komentaru > 0) {
-      html += '<span class="nv-bublina" title="Komentáře">' + komentaru + "</span>";
-    }
-    if (typeof poradi === "number" && poradi < 3) {
-      var za = textZa(n);
-      if (za) html += '<span class="nv-za">' + esc(za) + "</span>";
-    }
-    html += htmlStavChip(n.stav);
+    html += komentaru > 0
+      ? '<span class="nv-bublina" title="Komentáře">' + komentaru + "</span>"
+      : '<span class="nv-bublina nv-bublina-prazdna" aria-hidden="true"></span>';
+    html += '<span class="nv-za">' + esc(textZa(n)) + "</span>";
+    html += htmlStavChip(n.stav) + "</span>";
     return html + "</li>";
+  }
+
+  function tvarNavstev(pocet) {
+    return pocet + " " + tvarCisla(pocet, "návštěva", "návštěvy", "návštěv");
+  }
+
+  // Záhlaví sloupců — jen vizuální, každý řádek má vlastní aria-label.
+  function htmlZahlaviTabulky() {
+    return '<div class="nv-tabulka-hlava" aria-hidden="true"><span>Termín</span><span>Návštěva</span>' +
+      "<span>Typ</span><span></span><span>Kdy</span><span>Stav</span></div>";
   }
 
   function htmlPlan(zbyle, ind) {
     if (!zbyle.length) return "";
-    var poradi = 0;
-    var html = '<section class="nv-plan" aria-label="Plán">';
+    var html = '<section class="nv-plan" aria-label="Plán"><div class="nv-tabulka">' + htmlZahlaviTabulky();
     // Každý rok ve vlastní skupině — lepivý nadpis roku pak drží jen nad
     // svými návštěvami a s nimi i odjede, místo aby visel nad cizími.
     skupinyPodleRoku(zbyle).forEach(function (skupina) {
-      html += '<div class="nv-skupina"><h3 class="nv-rok">' + esc(skupina.nadpis) + '</h3><ol class="nv-seznam">';
+      html += '<div class="nv-skupina"><h3 class="nv-rok"><span>' + esc(skupina.nadpis) + "</span>" +
+        '<span class="nv-rok-pocet">' + esc(tvarNavstev(skupina.polozky.length)) + '</span></h3><ol class="nv-seznam">';
       skupina.polozky.forEach(function (n) {
-        html += htmlRadek(n, ind, poradi);
-        poradi++;
+        html += htmlRadek(n, ind);
       });
       html += "</ol></div>";
     });
-    return html + "</section>";
+    return html + "</div></section>";
   }
 
   function htmlProbehlo(hotove, ind) {
     if (!hotove.length) return "";
     var html = '<details class="nv-probehlo"' + (probehloOtevrene ? " open" : "") + ">" +
-      '<summary>Proběhlo <span class="nv-pocet">' + hotove.length + '</span></summary><ol class="nv-seznam">';
+      '<summary>Proběhlo <span class="nv-pocet">' + hotove.length + '</span></summary>' +
+      '<div class="nv-tabulka"><ol class="nv-seznam">';
     hotove.forEach(function (n) { html += htmlRadek(n, ind); });
-    return html + "</ol></details>";
+    return html + "</ol></div></details>";
   }
 
   // ---- vykreslení sekce ----
@@ -751,6 +799,12 @@
 
     cil.innerHTML = html;
     napojPosluchace(cil);
+    otevriZHashe();
+    if (komentarVPristi) {
+      var formular = cil.querySelector(".nv-pristi-form");
+      // Panel má vlastní výběr lidí; tady jen když panel zrovna není otevřený.
+      if (formular && !idOtevrenehoDetailu) dopluVyberZminek(formular);
+    }
     vratFokus(cil);
   }
 
@@ -843,6 +897,17 @@
     });
     dlg.showModal();
     return { dlg: dlg, zavri: zavri };
+  }
+
+  // Odkaz „#navstevy/<id>“ (z Přehledu, z Plánu stavby) otevře rovnou detail
+  // té návštěvy. Hash se hned vrátí na „#navstevy“ (replaceState hashchange
+  // nevyvolá), ať se panel neotvírá znovu při každém obnovení dat.
+  function otevriZHashe() {
+    var id = window.App && typeof App.parametrHashe === "function" ? App.parametrHashe() : "";
+    if (!id) return;
+    try { history.replaceState(null, "", "#navstevy"); } catch (e) { /* bez history API necháme hash být */ }
+    if (idOtevrenehoDetailu || !najdiPodleId(polozkyZeSouboru("navstevy"), id)) return;
+    setTimeout(function () { otevriDetail(id); }, 0);
   }
 
   // ---- stavba HTML detailu (boční panel) ----
@@ -1570,6 +1635,14 @@
 
       if (akce === "otevrit") {
         otevriDetail(id);
+      } else if (akce === "pristi-komentar") {
+        komentarVPristi = true;
+        fokusPo = '.nv-pristi-form textarea';
+        vykresli(posledniKontejner);
+      } else if (akce === "pristi-komentar-zrusit") {
+        komentarVPristi = false;
+        komentarVPristiText = "";
+        vykresli(posledniKontejner);
       } else if (akce === "stav-odeslat") {
         odeslatKeSchvaleni(id);
       } else if (akce === "stav-schvalit") {
@@ -1579,6 +1652,39 @@
       } else if (akce === "stav-probehlo") {
         oznacitProbehlo(id);
       }
+    });
+
+    // Rozepsaný komentář na kartě „Příště“ si pamatujeme přes překreslení.
+    cil.addEventListener("input", function (e) {
+      if (cil.dataset.aktivniSekce !== "navstevy") return;
+      if (e.target && e.target.closest && e.target.closest(".nv-pristi-form")) {
+        komentarVPristiText = e.target.value || "";
+      }
+    });
+
+    cil.addEventListener("submit", function (e) {
+      if (cil.dataset.aktivniSekce !== "navstevy") return;
+      var form = e.target;
+      if (!form.matches || !form.matches('[data-nav-akce-form="pristi-komentar"]')) return;
+      e.preventDefault();
+      var id = idKarty(form);
+      var pole = form.querySelector('[name="text"]');
+      var text = pole ? pole.value.trim() : "";
+      if (!id || !text) return;
+      var oznaceni = vyberZminekKomentare ? vyberZminekKomentare.vybrane() : [];
+      var tlacitko = form.querySelector('button[type="submit"]');
+      if (tlacitko) tlacitko.disabled = true;
+      pridatKomentarZaznam(id, text, oznaceni)
+        .then(function () {
+          komentarVPristi = false;
+          komentarVPristiText = "";
+          vykresli(posledniKontejner);
+          toastBezpecne("Komentář přidán.", "ok");
+        })
+        .catch(function (chyba) {
+          if (tlacitko) tlacitko.disabled = false;
+          poChybe(chyba);
+        });
     });
 
     // Enter / mezerník na řádku plánu = otevřít detail (řádek je role="button").

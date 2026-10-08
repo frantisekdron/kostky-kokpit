@@ -5029,27 +5029,52 @@ details.odpovedi[open] > summary::before {
   gap: 8px;
 }
 
-/* ---------- Plán: roky a řádky ---------- */
+/* ---------- Plán: decentní tabulka (Franta 8. 10. 2026) ----------
+   Jeden orámovaný blok, záhlaví sloupců, roky jako mezititulky uvnitř
+   tabulky a měsíc v rámečku jako lísteček z kalendáře. */
 .nv-plan {
   display: block;
   min-width: 0;
 }
-.nv-rok {
-  position: sticky;
-  top: var(--vyska-hlavicky, 0px);
-  z-index: 3;
-  margin: 0;
-  padding: 8px 8px;
-  background: var(--nv-pozadi);
-  box-shadow: 0 1px 0 var(--linka);
+.nv-tabulka {
+  --nv-sloupce: 56px minmax(0, 1fr) 84px 28px 92px 124px;
+  overflow: hidden;
+  border: 1px solid var(--linka);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.nv-tabulka-hlava {
+  display: grid;
+  grid-template-columns: var(--nv-sloupce);
+  align-items: center;
+  column-gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--linka);
   color: var(--text-slaby);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.nv-seznam + .nv-rok {
-  margin-top: 16px;
+.nv-rok {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--linka);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.nv-rok-pocet {
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 .nv-seznam {
   margin: 0;
@@ -5058,48 +5083,103 @@ details.odpovedi[open] > summary::before {
 }
 
 .nv-radek {
+  position: relative;
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr) 88px 32px 80px 112px;
+  grid-template-columns: var(--nv-sloupce);
   align-items: center;
   column-gap: 16px;
-  min-height: 56px;
-  padding: 8px;
+  min-height: 64px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--linka);
   color: var(--text);
   cursor: pointer;
   transition: background-color 0.12s, opacity 0.12s;
 }
+.nv-seznam > .nv-radek:last-child {
+  border-bottom: 0;
+}
+.nv-skupina:not(:last-child) .nv-seznam > .nv-radek:last-child {
+  border-bottom: 1px solid var(--linka);
+}
 .nv-radek:hover {
-  background: var(--panel-2);
+  background: rgba(255, 255, 255, 0.03);
 }
 .nv-radek:focus-visible {
   outline: 2px solid var(--akcent);
   outline-offset: -2px;
 }
+/* Na počítači se obal metadat rozpadne do sloupců tabulky. */
+.nv-radek-meta {
+  display: contents;
+}
+.nv-radek-meta > .nv-ikony   { justify-content: flex-start; }
+.nv-radek-meta > .nv-bublina { justify-self: center; }
+.nv-radek-meta > .nv-za      { text-align: left; }
+.nv-radek-meta > .nv-stav    { justify-self: start; }
 
-.nv-radek > .nv-radek-datum { grid-column: 1; grid-row: 1; }
-.nv-radek > .nv-radek-nazev { grid-column: 2; grid-row: 1; }
-.nv-radek > .nv-ikony       { grid-column: 3; grid-row: 1; justify-content: flex-start; }
-.nv-radek > .nv-bublina     { grid-column: 4; grid-row: 1; justify-self: center; }
-.nv-radek > .nv-za          { grid-column: 5; grid-row: 1; }
-.nv-radek > .nv-stav        { grid-column: 6; grid-row: 1; justify-self: start; }
-
-.nv-radek-datum {
-  min-width: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.3;
+/* Měsíc v rámečku — lísteček z kalendáře */
+.nv-dlazdice {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 46px;
+  overflow: hidden;
+  border: 1px solid var(--linka);
+  border-radius: 9px;
+  background: var(--pozadi);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.nv-radek-datum.nv-orientacne {
+.nv-dlazdice-mesic {
+  align-self: stretch;
+  padding: 4px 0 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--linka);
   color: var(--text-slaby);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
 }
+.nv-dlazdice-den {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+}
+.nv-dlazdice-orientacni {
+  border-style: dashed;
+  background: transparent;
+}
+.nv-dlazdice-orientacni .nv-dlazdice-mesic {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+.nv-stav-potvrzeno .nv-dlazdice:not(.nv-dlazdice-orientacni) {
+  border-color: rgba(140, 198, 63, 0.55);
+}
+.nv-stav-potvrzeno .nv-dlazdice:not(.nv-dlazdice-orientacni) .nv-dlazdice-mesic {
+  background: rgba(140, 198, 63, 0.16);
+  color: var(--akcent);
+}
+
 .nv-radek-nazev {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
@@ -5120,10 +5200,12 @@ details.odpovedi[open] > summary::before {
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+.nv-bublina-prazdna {
+  visibility: hidden;
+}
 .nv-za {
   color: var(--text-slaby);
   font-size: 13px;
-  text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -5135,8 +5217,41 @@ details.odpovedi[open] > summary::before {
 .nv-radek.nv-stav-zruseno .nv-radek-nazev {
   text-decoration: line-through;
 }
-.nv-radek.nv-stav-zruseno .nv-radek-datum {
-  color: var(--text-slaby);
+.nv-radek.nv-stav-zruseno .nv-dlazdice {
+  opacity: 0.5;
+}
+
+/* Komentář psaný rovnou na kartě „Příště“ */
+.nv-pristi-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--linka);
+  border-radius: 10px;
+  background: var(--pozadi);
+}
+.nv-pristi-form textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 1px solid var(--linka);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+.nv-pristi-form textarea:focus {
+  outline: 2px solid var(--akcent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+.nv-pristi-form-akce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* ---------- Proběhlo ---------- */
@@ -5144,10 +5259,9 @@ details.odpovedi[open] > summary::before {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 56px;
-  padding: 8px;
-  border-top: 1px solid var(--linka);
-  border-bottom: 1px solid var(--linka);
+  min-height: 48px;
+  padding: 8px 4px;
+  border-radius: 8px;
   color: var(--text-slaby);
   font-size: 12px;
   font-weight: 600;
@@ -5180,7 +5294,7 @@ details.odpovedi[open] > summary::before {
   outline-offset: -2px;
 }
 .nv-probehlo[open] > summary {
-  border-bottom-color: var(--linka);
+  margin-bottom: 8px;
 }
 .nv-probehlo .nv-radek {
   opacity: 0.6;
@@ -5191,9 +5305,13 @@ details.odpovedi[open] > summary::before {
 }
 
 /* ---------- Střední šířky: těsnější mřížka ---------- */
-@media (min-width: 720px) and (max-width: 899px) {
-  .nv-radek {
-    column-gap: 8px;
+@media (min-width: 720px) and (max-width: 979px) {
+  .nv-tabulka {
+    --nv-sloupce: 52px minmax(0, 1fr) 72px 24px 80px 112px;
+  }
+  .nv-radek,
+  .nv-tabulka-hlava {
+    column-gap: 10px;
   }
 }
 
@@ -5416,26 +5534,43 @@ details.odpovedi[open] > summary::before {
     min-height: 48px;
   }
 
+  .nv-tabulka-hlava {
+    display: none;
+  }
+  .nv-rok {
+    padding: 8px 12px;
+  }
   .nv-radek {
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    min-height: 72px;
+    padding: 12px;
+  }
+  .nv-radek > .nv-dlazdice {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .nv-radek-nazev {
+    white-space: normal;
+  }
+  .nv-radek-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 12px;
-    min-height: 64px;
-    padding: 12px 8px;
+    gap: 4px 10px;
+    min-width: 0;
   }
-  .nv-radek > .nv-radek-nazev {
-    order: -1;
-    flex: 0 0 100%;
+  .nv-radek-meta > .nv-bublina-prazdna {
+    display: none;
   }
-  .nv-radek > .nv-radek-datum {
-    white-space: nowrap;
-  }
-  .nv-radek > .nv-stav {
+  .nv-radek-meta > .nv-stav {
     margin-left: auto;
   }
-  .nv-radek > .nv-za {
-    text-align: left;
+  .nv-pristi-form .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
   }
 
   .modal-okno.nv-panel {
@@ -5501,6 +5636,4 @@ details.odpovedi[open] > summary::before {
   opacity: 1;
 }
 
-.nv-skupina + .nv-skupina {
-  margin-top: 16px;
-}
+
