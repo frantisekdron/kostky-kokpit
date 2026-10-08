@@ -772,6 +772,9 @@
       }
     }
     while (kontejner.firstChild) kontejner.removeChild(kontejner.firstChild);
+    // Klíč sekce na kontejneru — styly můžou sladit starší sekce se zbytkem
+    // webu (#obsah[data-sekce="materialy"] …), aniž by sahaly do jejich JS.
+    kontejner.setAttribute("data-sekce", klic);
     zobrazVystrahu(klic);
     if (window.Listecky && typeof Listecky.prekresli === "function") {
       try { Listecky.prekresli(); } catch (chybaListecku) {

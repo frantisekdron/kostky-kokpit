@@ -7731,3 +7731,81 @@ button.pl-hero-nazev:focus-visible {
     animation: none !important;
   }
 }
+
+/* =====================================================================
+   ODDĚLENÍ RÁMEČKŮ (Franta 8. 10. 2026: „splývá se to")
+   Karty a tabulky dostanou zřetelnější okraj a stín, řádky se střídají
+   v pozadí a mají vlevo barevný proužek podle stavu, lísteček s měsícem
+   je světlejší než řádek, mezititulky roků jsou výraznější pásy.
+   ===================================================================== */
+:root {
+  --linka-silna: #3a4250;
+}
+
+/* Karty a tabulky — okraj + stín, ať se od podkladu i od sebe oddělí */
+.nv-pristi,
+.pl-hero,
+.pl-pas-karta,
+.ph-karta,
+.nv-tabulka {
+  box-shadow: 0 12px 30px -20px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+.pl-pas-karta,
+.ph-karta,
+.nv-tabulka {
+  border-color: var(--linka-silna);
+}
+
+/* Řádky tabulek: střídání pozadí, výraznější dělicí čára, proužek stavu */
+.nv-seznam > .nv-radek {
+  border-bottom-color: var(--linka-silna);
+  box-shadow: inset 3px 0 0 var(--nv-stav, transparent);
+}
+.nv-seznam > .nv-radek:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+.nv-seznam > .nv-radek:hover {
+  background: rgba(140, 198, 63, 0.07);
+}
+.nv-seznam > .pl-radek {
+  box-shadow: inset 3px 0 0 var(--pl-barva, transparent);
+}
+
+/* Mezititulky roků jako pás */
+.nv-rok {
+  border-top: 1px solid var(--linka-silna);
+  border-bottom-color: var(--linka-silna);
+  background: #272c35;
+}
+.nv-tabulka-hlava + .nv-skupina > .nv-rok,
+.nv-tabulka > .nv-skupina:first-child > .nv-rok {
+  border-top: 0;
+}
+
+/* Lísteček s měsícem: světlejší podklad a stín, ať nesplývá s řádkem */
+.nv-dlazdice {
+  border-color: #485060;
+  background: var(--panel-2);
+  box-shadow: 0 3px 8px -4px rgba(0, 0, 0, 0.7);
+}
+.nv-dlazdice-mesic {
+  border-bottom-color: #485060;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cfd5dc;
+}
+.nv-dlazdice-orientacni {
+  border-color: #5c6574;
+  background: rgba(255, 255, 255, 0.035);
+}
+.nv-dlazdice-orientacni .nv-dlazdice-mesic {
+  background: transparent;
+  color: var(--text);
+}
+
+/* Seznamy uvnitř karet Přehledu: oddělit čarou a střídáním */
+.ph-potom-seznam > li + li {
+  border-top: 1px solid var(--linka);
+}
+.ph-akt-seznam > .ph-akt-radek:nth-child(even) {
+  background: rgba(255, 255, 255, 0.025);
+}
