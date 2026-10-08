@@ -507,8 +507,9 @@
         htmlOdkazTlacitko("#materialy", "Materiály")));
     });
 
-    // (e) blížící se průběžné video
-    var video = dalsiPrubezneVideo(ctx.nastaveni, ctx.rozsah.prubezna, ctx.dnes);
+    // (e) blížící se průběžné video — je to náš termín dodání, stavbě by
+    // jen přidal řádek, se kterým nic neudělá (Franta 8. 10. 2026: „ne“).
+    var video = ctx.nasTym ? dalsiPrubezneVideo(ctx.nastaveni, ctx.rozsah.prubezna, ctx.dnes) : null;
     if (video) {
       var dniDoVidea = Util.zaDni(video.iso);
       if (dniDoVidea <= VIDEO_VAROVANI_DNI) {
