@@ -4072,3 +4072,20 @@ details.odpovedi[open] > summary::before {
 .galerie-vic {
   margin-top: 12px;
 }
+
+/* Mista bez osazene kamery (vytipovana, jednana, zamitnuta) jsou dosediva —
+   at je na prvni pohled videt, ktera dve mista opravdu snimaji. Fotka
+   v karte i znacka v mape, aby to drzelo pohromade. */
+.cas-misto-foto-nejede img {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.mapa-marker-nejede .mapa-marker-kolecko {
+  background: var(--text-slaby);
+  color: #14161a;
+}
+
+.mapa-marker-nejede::after {
+  border-top-color: var(--text-slaby);
+}

@@ -398,7 +398,9 @@ var Mapa = (function () {
       // když člověk chytne zrovna špendlík.
       prvek.className =
         (jeMisto ? "mapa-marker" : "mapa-marker mapa-marker-snimek") +
-        (klikaci ? "" : " mapa-marker-staticky");
+        (klikaci ? "" : " mapa-marker-staticky") +
+        // Místo, kde kamera nejede, je došeda — stejně jako jeho fotka v kartě.
+        (marker.nejede ? " mapa-marker-nejede" : "");
       prvek.style.left = Math.round(x) + "px";
       prvek.style.top = Math.round(y) + "px";
 
@@ -447,7 +449,8 @@ var Mapa = (function () {
 
       if (hlavniBod && platnyBod(hlavniBod.lat, hlavniBod.lon)) {
         var hlavni = vytvorMarker(
-          { lat: hlavniBod.lat, lon: hlavniBod.lon, druh: "misto", popisek: nastaveni.popisek || "Bod" },
+          { lat: hlavniBod.lat, lon: hlavniBod.lon, druh: "misto",
+            popisek: nastaveni.popisek || "Bod", nejede: nastaveni.nejede },
           rozmer,
           stred
         );
@@ -728,7 +731,8 @@ var Mapa = (function () {
         zoom: nastaveni.zoom,
         klikatelna: !!nastaveni.klikatelna,
         naZmenu: nastaveni.naZmenu,
-        popisek: nastaveni.popisek
+        popisek: nastaveni.popisek,
+        nejede: !!nastaveni.nejede
       });
     } catch (chyba) {
       // Mapa nikdy nesmí shodit sekci — místo ní šedé pole.

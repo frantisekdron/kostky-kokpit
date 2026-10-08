@@ -1009,7 +1009,8 @@
         druh: "misto",
         cislo: index + 1,
         popisek: (index + 1) + " · " + (m.nazev || "Místo"),
-        id: m.id
+        id: m.id,
+        nejede: !m.kamera || !String(m.kamera).trim()
       });
     });
     SNIMKY.forEach(function (s, index) {
@@ -2029,6 +2030,11 @@
   function vytvorFotkuMista(misto) {
     var obal = document.createElement("div");
     obal.className = "cas-misto-foto";
+    // Místo bez osazené kamery (vytipované, jednané i zamítnuté) má fotku
+    // došeda, ať je na první pohled vidět, která místa opravdu snímají.
+    if (!misto.kamera || !String(misto.kamera).trim()) {
+      obal.classList.add("cas-misto-foto-nejede");
+    }
 
     var fotka = fotkaMista(misto);
     var prvky = vytvorKlikaciNahled(fotka, "", "Fotka místa — " + (misto.nazev || "bez názvu"));
@@ -2155,7 +2161,8 @@
         lat: misto.bod.lat,
         lon: misto.bod.lon,
         zoom: Mapa.ZOOM_VYCHOZI,
-        popisek: "Mapa místa " + (misto.nazev || "")
+        popisek: "Mapa místa " + (misto.nazev || ""),
+        nejede: !misto.kamera || !String(misto.kamera).trim()
       });
       if (instance) zivyMapy.push(instance);
     } else {
