@@ -7809,3 +7809,660 @@ button.pl-hero-nazev:focus-visible {
 .ph-akt-seznam > .ph-akt-radek:nth-child(even) {
   background: rgba(255, 255, 255, 0.025);
 }
+
+/* =====================================================================
+   ČASOSBĚR — nový vzhled (Franta 8. 10. 2026)
+   Připojit na KONEC styles.css. Jen třídy cs-* + scopované úpravy
+   uvnitř .cs (stránka) a .cs-panel / .cs-detail (boční panel místa).
+   Rámečky jsou záměrně o stupeň světlejší než --linka (Franta: „splývají"),
+   proměnná --cs-ramecek je v .cs i v panelu.
+   ===================================================================== */
+
+.cs,
+.cs-panel {
+  --cs-ramecek: #3a414d;
+}
+
+/* ---------- Hero „Kamery" ---------- */
+.cs-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid rgba(140, 198, 63, 0.28);
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(140, 198, 63, 0.14) 0%, rgba(140, 198, 63, 0) 55%),
+    var(--panel);
+  box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.6);
+}
+.cs-hero-stitek {
+  margin: 0 0 -6px;
+  color: var(--akcent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cs-hero-cislo-radek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.cs-hero-cislo {
+  color: var(--akcent);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.cs-hero-popisek {
+  color: var(--text-slaby);
+  font-size: 15px;
+  font-weight: 500;
+}
+.cs-hero-instalace {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px 4px;
+  min-height: 24px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+.cs-hero-instalace:hover {
+  color: var(--akcent);
+  text-decoration: underline;
+}
+.cs-hero-instalace:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.cs-hero-drobne,
+.cs-drobne,
+.cs-legenda {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cs-hero-drobne-varuje {
+  color: var(--varovani);
+}
+
+/* ---------- Karty osazených kamer ---------- */
+.cs-kamery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 6px;
+}
+.cs-kamera {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--cs-ramecek);
+  border-radius: 14px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.cs-kamera:hover {
+  border-color: var(--akcent);
+}
+.cs-kamera:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: 2px;
+}
+.cs-kamera-foto {
+  position: relative;
+  height: 150px;
+  background: var(--pozadi);
+  border-bottom: 1px solid var(--cs-ramecek);
+}
+.cs-kamera-foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cs-kamera-foto img[hidden] {
+  display: none;
+}
+.cs-foto-stav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--text-slaby);
+  font-size: 12px;
+  text-align: center;
+}
+.cs-foto-stav[hidden] {
+  display: none;
+}
+.cs-kamera-telo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px 16px;
+}
+.cs-kamera-nazev {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.cs-kamera-model {
+  margin: -4px 0 0;
+  color: var(--akcent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.cs-kamera-stavy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.nv-stav.cs-mini {
+  font-size: 12px;
+}
+.cs-kamera-pozn {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-slaby);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* ---------- Karta (mapa, galerie) ---------- */
+.cs-karta {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--cs-ramecek);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.cs-karta-hlava {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+  margin: 0 0 14px;
+}
+.cs-karta-titulek {
+  margin: 0;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.cs-karta-mapa .mapa-velka .mapa-platno {
+  height: 360px;
+  border: 1px solid var(--cs-ramecek);
+  border-radius: 10px;
+}
+.cs-karta-mapa .cs-legenda {
+  margin-top: 10px;
+}
+
+/* ---------- Tabulka míst ---------- */
+.cs-tabulka {
+  --nv-sloupce: 56px minmax(0, 1.5fr) minmax(0, 1fr) 108px 116px;
+  border-color: var(--cs-ramecek);
+}
+.cs-tabulka .nv-tabulka-hlava,
+.cs-tabulka .nv-rok,
+.cs-tabulka .nv-radek {
+  border-bottom-color: var(--cs-ramecek);
+}
+.cs-cislo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--cs-ramecek);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cs-cislo-kamera {
+  border-color: var(--akcent);
+  background: rgba(140, 198, 63, 0.12);
+  color: var(--akcent);
+}
+.cs-radek-text,
+.cs-radek-pod {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cs-radek-pod {
+  margin-top: 2px;
+  color: var(--text-slaby);
+  font-size: 12px;
+  font-weight: 400;
+}
+.cs-radek-model {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cs-radek-model-prazdny {
+  color: var(--text-slaby);
+}
+.cs-tecky {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cs-tecka {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--nv-stav, var(--text-slaby));
+  color: #14161a;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+.cs-radek-zamitnuto {
+  opacity: 0.55;
+}
+.cs-radek-zamitnuto:hover,
+.cs-radek-zamitnuto:focus-visible {
+  opacity: 1;
+}
+
+@media (min-width: 720px) and (max-width: 979px) {
+  .cs-tabulka {
+    --nv-sloupce: 52px minmax(0, 1.3fr) minmax(0, 1fr) 100px 108px;
+  }
+}
+
+/* ---------- Galerie náletu (sbalená) ---------- */
+.cs-galerie {
+  padding: 0;
+}
+.cs-galerie-souhrn {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 20px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.cs-galerie-souhrn::-webkit-details-marker {
+  display: none;
+}
+.cs-galerie-souhrn::before {
+  content: "▸";
+  flex: none;
+  margin-right: 10px;
+  color: var(--text-slaby);
+}
+.cs-galerie[open] > .cs-galerie-souhrn::before {
+  content: "▾";
+}
+.cs-galerie-souhrn:focus-visible {
+  outline: 2px solid var(--akcent);
+  outline-offset: -2px;
+  border-radius: 14px;
+}
+.cs-galerie-telo {
+  padding: 4px 20px 20px;
+}
+.cs-galerie-telo > .cs-drobne {
+  margin-bottom: 12px;
+}
+
+/* ---------- Detail místa v bočním panelu ---------- */
+.cs-detail {
+  min-width: 0;
+}
+.cs-detail .nv-panel-akce {
+  padding-bottom: 16px;
+}
+.cs-detail-kamera {
+  color: var(--akcent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.cs-detail-kamera-nejede {
+  color: var(--text-slaby);
+  font-weight: 400;
+}
+.cs-detail .cas-misto-foto img {
+  max-height: none;
+  border-radius: 10px;
+  border-color: var(--cs-ramecek);
+}
+.cs-detail .cas-udaj {
+  border-bottom-color: var(--cs-ramecek);
+}
+.cs-detail .cas-udaj-popisek {
+  min-width: 9em;
+}
+.cs-detail .cas-poznamka {
+  border-radius: 8px;
+  border-left-color: var(--cs-ramecek);
+}
+.cs-detail .mapa-mala .mapa-platno {
+  border-color: var(--cs-ramecek);
+  border-radius: 10px;
+}
+.cs-detail details.komentare {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.cs-detail details.komentare > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.cs-detail .komentar {
+  border-color: var(--cs-ramecek);
+  border-radius: 10px;
+}
+.cs-detail .cas-foto-stav {
+  border-radius: 10px;
+}
+.cs-detail .cas-foto-blok .karta,
+.cs-detail .formular .karta {
+  border-color: var(--cs-ramecek);
+}
+
+/* ---------- Mobil (< 720 px) ---------- */
+@media (max-width: 719px) {
+  .cs-hero {
+    padding: 18px;
+  }
+  .cs-hero-cislo-radek {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .cs-kamery {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cs-karta {
+    padding: 16px;
+  }
+  .cs-karta-mapa .mapa-velka .mapa-platno {
+    height: 300px;
+  }
+  .cs-tabulka .nv-radek > .cs-cislo {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .cs-radek-model {
+    flex: 1 1 auto;
+  }
+  .cs-galerie-souhrn {
+    min-height: 56px;
+    padding: 8px 16px;
+    line-height: 1.4;
+  }
+  .cs-galerie-telo {
+    padding: 4px 16px 16px;
+  }
+  .cs-detail .btn,
+  .cs-detail .filtr-tlacitko {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-kamera,
+  .cs-tabulka .nv-radek {
+    transition: none;
+  }
+}
+
+.cs-tabulka .nv-skupina:not(:last-child) .nv-seznam > .nv-radek:last-child {
+  border-bottom-color: var(--cs-ramecek);
+}
+
+/* Sladeni sekci Materialy, Tym, Sprava, Naklady, Kos s novym vzhledem (jen CSS) */
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) {
+  max-width: 960px;
+  box-sizing: border-box;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .nadpis-sekce,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .sekce-hlava h2,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .sekce-hlavicka h2 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .podnadpis-sekce {
+  font-size: 13px;
+  color: var(--text-slaby);
+  margin: 0 0 16px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .sekce-hlava,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .sekce-hlavicka {
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .oddil {
+  margin-bottom: 32px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .oddil > h3,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .blok-spravy h3,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .skupina-nadpis,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-slaby);
+  margin-bottom: 12px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .blok-spravy {
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px -18px rgba(0,0,0,.7);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .blok-spravy:last-child {
+  margin-bottom: 0;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--linka);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karty-mrizka {
+  gap: 16px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta {
+  border: 1px solid var(--linka);
+  border-left: 3px solid var(--stav-barva, var(--linka));
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 20px;
+  box-shadow: 0 8px 24px -18px rgba(0,0,0,.7);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) > .karta + .karta,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .oddil > .karta + .karta {
+  margin-top: 12px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta-hlavicka {
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta-nadpis {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta-meta {
+  font-size: 13px;
+  color: var(--text-slaby);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta-popis {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta-akce {
+  gap: 8px;
+  margin-top: 14px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .stitek {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .stitek-chyba {
+  background: rgba(217,83,79,.16);
+  border-color: rgba(217,83,79,.45);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .stitek-role {
+  border-color: rgba(140,198,63,.35);
+  background: rgba(140,198,63,.1);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .prazdny-stav {
+  border: 1px dashed var(--linka);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 28px 20px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  border: 1px solid var(--linka);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px -18px rgba(0,0,0,.7);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-prav th,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-prav td,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-uzivatele th,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-uzivatele td,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-naklady th,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-naklady td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--linka);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-prav thead th,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-uzivatele thead th,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-naklady thead th {
+  background: var(--panel-2);
+  color: var(--text-slaby);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-prav tbody tr:nth-child(even),
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-uzivatele tbody tr:nth-child(even),
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-naklady tbody tr:nth-child(even) {
+  background: rgba(255,255,255,.028);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-prav tbody tr:hover,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-uzivatele tbody tr:hover,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-naklady tbody tr:hover {
+  background: rgba(140,198,63,.05);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-prav tbody tr:last-child td,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-uzivatele tbody tr:last-child td,
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .tabulka-naklady tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .radek-kos {
+  background: var(--panel);
+  border: 1px solid var(--linka);
+  border-radius: 14px;
+  padding: 14px 20px;
+  box-shadow: 0 8px 24px -18px rgba(0,0,0,.7);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .radek-kos + .radek-kos {
+  margin-top: 12px;
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .dlazdice {
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .pole input, :is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .pole textarea, :is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .pole select, :is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .vstup {
+  border-radius: 10px;
+}
+
+@media (max-width: 719px) {
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .karta {
+    padding: 16px;
+  }
+  
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .blok-spravy {
+    padding: 16px;
+  }
+  
+:is(#obsah[data-sekce="materialy"], #obsah[data-sekce="lide"], #obsah[data-sekce="sprava"], #obsah[data-sekce="naklady"], #obsah[data-sekce="kos"]) .btn {
+    min-height: 44px;
+  }
+  
+}

@@ -3,34 +3,40 @@
  *
  * Rozhodovací nástroj: kam se pověsí dvě časosběrné kamery na tři roky.
  * František 26. 8. 2026 nalétal místa, ze kterých by záběr mohl být dobrý,
- * a má z toho 40 finálních fotek. Sekce má tři části:
+ * a má z toho 40 finálních fotek.
  *
- *   0. PRUH INSTALAČNÍ NÁVŠTĚVY — „Instalace kamer — návštěva č. N,
- *      termín, stav" s odkazem na #navstevy. Návštěva se hledá podle
- *      milnik_id === "mil-01b", NE podle čísla (to se při přeplánování
- *      posune).
- *   1. SOUHRN (§A.8) — schválená místa X ze 2 potřebných, semafor
- *      připravenosti k instalaci (kolik míst má současně schválený
- *      přístup A potvrzené napájení), počet snímků v galerii a kolik
- *      jich už má popis.
- *   2. PŘEHLEDOVÁ MAPA (§A.5) — všechny body najednou: vybraná místa jako
- *      velké číslované markery, snímky z náletu jako tlumené tečky.
- *   3. VYBRANÁ MÍSTA — karty s fotkou, popisem, mapou, výškou, směrem
- *      pohledu, vzdáleností, zvolenou kamerou a komentáři. Navíc tři
- *      řádky se štítkem stavu, které rozhodují o osazení kamery:
- *      Přístup (stav místa + jedna_s + pristup_popis), Napájení 230 V
- *      (napajeni.stav + popis) a Internet (internet.stav + popis).
- *      Tlačítko „Kopírovat dotaz pro stavbu" z nich vyrobí hotový text
- *      do mailu pro PORR / stavbyvedoucího.
- *   3b. FOTKA U MÍSTA — u každého místa jde fotku přidat třemi cestami
- *      (nahrát ze souboru z telefonu/počítače, vybrat ze snímků náletu,
- *      vložit odkaz https://) a zase ji odebrat. Blok „Fotka" je jak
- *      v úpravě místa, tak přímo na kartě (tlačítka Přidat/Změnit fotku
- *      a Odebrat fotku vedle náhledu).
- *   4. GALERIE NÁLETU (§A.3) — mřížka 40 dlaždic s filtrem
- *      Vše | Do 35 m (pro kameru) | Z dronu | Z ruční kamery | S popisem
- *      (výchozí „Do 35 m"). Detail snímku v modálu má velký náhled, pole
- *      Popis, mapu s bodem a tlačítko „Vybrat jako místo pro kameru".
+ * ROZLOŽENÍ (Franta 8. 10. 2026 — sladěno s Návštěvami, Plánem a Přehledem,
+ * kořen <div class="nv cs">, třídy cs-* jsou na konci styles.css):
+ *
+ *   0. HLAVIČKA — „Časosběr" a vpravo „+ Místo" (jen s právem upravit).
+ *   1. HERO „KAMERY" — velké „2 / 2 běží" (místa s vyplněným modelem kamery
+ *      z rozsah.kamery v nastavení), jedna řádka s instalační návštěvou
+ *      („Instalace — návštěva č. N · termín · stav", odkaz #navstevy/<id>
+ *      otevře rovnou její detail; návštěva se hledá podle milnik_id
+ *      "mil-01b", NE podle čísla), drobná řádka „připraveno k instalaci"
+ *      (schválený přístup + potvrzené napájení) a pod ní karty osazených
+ *      kamer s náhledem, modelem, třemi stavy Přístup/Napájení/Internet
+ *      a poznámkou. Karta je klikací celá → detail v panelu.
+ *   2. KARTA MAPY (§A.5) — všechny body najednou: vybraná místa jako velké
+ *      číslované markery, snímky z náletu jako tlumené tečky.
+ *   3. TABULKA MÍST — # | Místo | Kamera | Připojení | Stav. Číslo je stejné
+ *      jako na markeru mapy. Zamítnutá místa jsou na konci a zašedlá.
+ *      Místa bez osazené kamery jsou šedá na mapě i na fotce (cas-misto-
+ *      foto-nejede, mapa-marker-nejede). Klik / Enter / mezerník otevře
+ *      boční panel.
+ *   3b. DETAIL MÍSTA V BOČNÍM PANELU (dialog.nv-panel) — fotka (nahrát ze
+ *      souboru / vybrat ze snímků náletu / vložit odkaz https:// a odebrat),
+ *      údaje a výšky, mini mapa, řádky Přístup / Napájení 230 V / Internet
+ *      se štítky, akce (Kopírovat dotaz pro stavbu, Přístup-napájení-
+ *      internet, Upravit, Smazat) a komentáře. Panel se při překreslení
+ *      sekce (polling) nezavírá, jen se obnoví pro stejné id; rozepsaný
+ *      komentář zůstane. Stav panelu se maže synchronně při zavření.
+ *      Odkaz #casosber/<id> otevře panel rovnou.
+ *   4. GALERIE NÁLETU (§A.3) — sbalená <details>, 40 dlaždic s filtrem
+ *      Vše | Z dronu | Z ruční kamery | S popisem. Dlaždice se skládají až
+ *      při prvním rozbalení (kvůli línému načítání náhledů). Detail snímku
+ *      v modálu má velký náhled, pole Popis, mapu s bodem a tlačítko
+ *      „Vybrat jako místo pro kameru".
  *
  * Data:
  *   NALET (js/nalet.js)     zapečený seznam snímků, KONSTANTA — nezapisuje se
@@ -94,6 +100,7 @@
   // stejně jako všechno ostatní. Naplní se při každém vykreslení sekce.
   var TEREN_M = 260.0;
   var SNIMKY = [];
+  var predvybraneZminky = null;  // označení před překreslením panelu, předává se do Util.vyberZminek
 
   function nactiNalet() {
     var d = (window.App && typeof App.obsah === "function") ? App.obsah("nalet") : null;
@@ -125,18 +132,18 @@
   // ------------------------------------------------------------------
 
   var STAVY_NAPAJENI = [
-    { kod: "nezjisteno", nazev: "nezjištěno", trida: "stav-navrzeno" },
-    { kod: "dotaz-odeslan", nazev: "dotaz odeslán", trida: "stav-jedna-se" },
-    { kod: "potvrzeno", nazev: "potvrzeno", trida: "stav-schvaleno" },
-    { kod: "neni", nazev: "není", trida: "stitek-chyba" }
+    { kod: "nezjisteno", nazev: "nezjištěno", trida: "stav-navrzeno", nv: "nv-stav-navrh" },
+    { kod: "dotaz-odeslan", nazev: "dotaz odeslán", trida: "stav-jedna-se", nv: "nv-stav-ke-schvaleni" },
+    { kod: "potvrzeno", nazev: "potvrzeno", trida: "stav-schvaleno", nv: "nv-stav-potvrzeno" },
+    { kod: "neni", nazev: "není", trida: "stitek-chyba", nv: "nv-stav-zruseno" }
   ];
 
   var STAVY_INTERNETU = [
-    { kod: "nezjisteno", nazev: "nezjištěno", trida: "stav-navrzeno" },
-    { kod: "dotaz-odeslan", nazev: "dotaz odeslán", trida: "stav-jedna-se" },
-    { kod: "wifi", nazev: "wi-fi", trida: "stav-schvaleno" },
-    { kod: "kabel", nazev: "kabel", trida: "stav-schvaleno" },
-    { kod: "neni", nazev: "není", trida: "stitek-chyba" }
+    { kod: "nezjisteno", nazev: "nezjištěno", trida: "stav-navrzeno", nv: "nv-stav-navrh" },
+    { kod: "dotaz-odeslan", nazev: "dotaz odeslán", trida: "stav-jedna-se", nv: "nv-stav-ke-schvaleni" },
+    { kod: "wifi", nazev: "wi-fi", trida: "stav-schvaleno", nv: "nv-stav-schvaleno" },
+    { kod: "kabel", nazev: "kabel", trida: "stav-schvaleno", nv: "nv-stav-schvaleno" },
+    { kod: "neni", nazev: "není", trida: "stitek-chyba", nv: "nv-stav-zruseno" }
   ];
 
   // Instalační návštěvu hledáme podle milníku, NE podle čísla — čísla
@@ -169,6 +176,9 @@
   var popisyJenVPameti = false;   // true = gh.js blok `popisy` nezapsal
   var pozorovatelNahledu = null;  // IntersectionObserver pro postupné načítání (§A.6)
   var zivyMapy = [];              // instance map aktuálního vykreslení (kvůli .znic())
+  var galerieOtevrena = false;    // Franta 8. 10.: galerie je ve výchozím stavu sbalená; pamatuje se přes překreslení
+  var panel = null;               // otevřený boční panel místa { id, dlg, telo, nadpis, hotovo, zavri } | null
+  var zivyMapyPanelu = [];        // mini mapa uvnitř panelu (obnovuje a ruší ji panel, ne vykresli)
 
   // ------------------------------------------------------------------
   // Drobné pomocné funkce
@@ -859,144 +869,201 @@
   }
 
   // ------------------------------------------------------------------
-  // Souhrn nahoře (§A.8)
+  // Drobné stavební prvky nového vzhledu (Franta 8. 10. 2026)
   // ------------------------------------------------------------------
 
-  function vytvorSouhrn() {
-    var vsechna = mista();
+  function uzel(znacka, trida, text) {
+    var el = document.createElement(znacka);
+    if (trida) el.className = trida;
+    if (text !== undefined && text !== null) el.textContent = text;
+    return el;
+  }
+
+  // Kamera je osazená, když má místo vyplněný model. Podle toho se místa
+  // šedí (mapa, fotka) a podle toho se počítá hero „2 / 2".
+  function mistoMaKameru(misto) {
+    return !!(misto && misto.kamera && String(misto.kamera).trim());
+  }
+
+  // Stav místa -> barva společného stavového čipu (--nv-stav ze styles.css).
+  function nvTridaMista(kod) {
+    switch (kod) {
+      case "jedna-se":
+        return "nv-stav-ke-schvaleni";
+      case "schvaleno":
+        return "nv-stav-schvaleno";
+      case "zamitnuto":
+        return "nv-stav-zruseno";
+      default:
+        return "nv-stav-navrh";
+    }
+  }
+
+  function chipStavu(nvTrida, text) {
+    return uzel("span", "nv-stav " + nvTrida, text);
+  }
+
+  // Tři věci, které rozhodují o osazení kamery — stejná data a barvy jako dřív
+  // v řádcích karty, jen jednotně pro hero, tabulku i panel.
+  function stavyPripojeni(misto) {
+    var pristupPopis = [];
+    if (misto.jedna_s) pristupPopis.push(misto.jedna_s);
+    if (pristupPopisMista(misto)) pristupPopis.push(pristupPopisMista(misto));
+
+    var napajeni = napajeniMista(misto);
+    var polNapajeni = polozkaCiselniku(STAVY_NAPAJENI, napajeni.stav);
+    var internet = internetMista(misto);
+    var polInternet = polozkaCiselniku(STAVY_INTERNETU, internet.stav);
+
+    return [
+      { pismeno: "P", popisek: "Přístup", text: nazevStavu(misto.stav), nv: nvTridaMista(misto.stav), popis: pristupPopis.join(" · ") },
+      { pismeno: "N", popisek: "Napájení", text: polNapajeni.nazev, nv: polNapajeni.nv, popis: napajeni.popis },
+      { pismeno: "I", popisek: "Internet", text: polInternet.nazev, nv: polInternet.nv, popis: internet.popis }
+    ];
+  }
+
+  function textStavuPripojeni(s) {
+    return s.popisek + ": " + s.text + (s.popis ? " — " + s.popis : "");
+  }
+
+  // Řádek tabulky i karta kamery jsou klikací celé a dostupné z klávesnice
+  // (Enter / mezerník), jako řádky v Návštěvách.
+  function zpristupniKlikem(prvek, id) {
+    prvek.setAttribute("data-id", id);
+    prvek.tabIndex = 0;
+    prvek.setAttribute("role", "button");
+    prvek.addEventListener("click", function () {
+      otevriPanelMista(id);
+    });
+    prvek.addEventListener("keydown", function (udalost) {
+      if (udalost.target !== prvek) return;
+      if (udalost.key === "Enter" || udalost.key === " " || udalost.key === "Spacebar") {
+        udalost.preventDefault();
+        otevriPanelMista(id);
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Hero „Kamery" (nahrazuje dřívější souhrn, pruh instalace i úvodní větu)
+  // ------------------------------------------------------------------
+
+  // Návštěva se hledá podle milníku mil-01b, ne podle čísla; odkaz #navstevy/<id>
+  // otevře rovnou její detail.
+  function vytvorRadekInstalace() {
+    var navsteva = najdiInstalacniNavstevu();
+    var odkaz = uzel("a", "cs-hero-instalace");
+    odkaz.title =
+      "Kamery se osadí ještě před instalací buňkoviště a lešení, ať zachytí i tuhle fázi. " +
+      "U obou míst k tomu musí být potvrzený přístup, napájení 230 V a připojení k internetu.";
+    if (!navsteva) {
+      odkaz.href = "#navstevy";
+      odkaz.textContent = "Instalace kamer — návštěva zatím není v plánu.";
+      return odkaz;
+    }
+    odkaz.href = "#navstevy/" + encodeURIComponent(navsteva.id);
+    var casti = ["Instalace — návštěva č. " + navsteva.cislo];
+    var termin = terminNavstevy(navsteva);
+    if (termin) casti.push(termin);
+    odkaz.appendChild(document.createTextNode(casti.join(" · ") + " · "));
+    odkaz.appendChild(chipStavu("nv-stav-" + (navsteva.stav || "navrh"), STAVY_NAVSTEVY[navsteva.stav] || navsteva.stav || ""));
+    return odkaz;
+  }
+
+  // Semafor připravenosti: kolik míst má SOUČASNĚ schválený přístup a potvrzené
+  // napájení. Dřív to byl celý souhrn; v hero zbývá jedna drobná řádka.
+  function vytvorRadekPripravenosti(vsechna) {
     var schvalena = vsechna.filter(function (m) {
       return m.stav === "schvaleno";
     }).length;
-
-    var karta = document.createElement("section");
-    karta.className = "karta cas-souhrn";
-
-    var hlavni = document.createElement("div");
-    hlavni.className = "cas-souhrn-hlavni";
-
-    var cisloEl = document.createElement("span");
-    cisloEl.className = "souhrn-cislo";
-    cisloEl.textContent = schvalena + " ze " + POTREBA_MIST;
-    hlavni.appendChild(cisloEl);
-
-    var popisek = document.createElement("span");
-    popisek.className = "cas-souhrn-popisek";
-    popisek.textContent = "schválená místa pro kamery";
-    hlavni.appendChild(popisek);
-
-    karta.appendChild(hlavni);
-
-    if (schvalena < POTREBA_MIST) {
-      var varovani = document.createElement("p");
-      varovani.className = "cas-souhrn-varovani";
-      varovani.textContent = "Zatím není vybráno dost míst pro dvě kamery.";
-      karta.appendChild(varovani);
-    }
-
-    // Semafor připravenosti k instalaci — hlavní věc, kterou je potřeba
-    // vidět na první pohled: kolik míst má SOUČASNĚ schválený přístup
-    // a potvrzené napájení.
     var pripravena = vsechna.filter(jePripraveneKInstalaci).length;
-    var radekPripravenosti = document.createElement("div");
-    radekPripravenosti.className = "cas-udaj";
-    var popisekPripravenosti = document.createElement("span");
-    popisekPripravenosti.className = "cas-udaj-popisek";
-    popisekPripravenosti.textContent = "Připraveno k instalaci";
-    radekPripravenosti.appendChild(popisekPripravenosti);
-    var stitekPripravenosti = document.createElement("span");
-    stitekPripravenosti.className =
-      "stitek " + (pripravena >= POTREBA_MIST ? "stav-schvaleno" : "stav-jedna-se");
-    stitekPripravenosti.textContent = pripravena + " ze " + POTREBA_MIST;
-    radekPripravenosti.appendChild(stitekPripravenosti);
-    var hodnotaPripravenosti = document.createElement("span");
-    hodnotaPripravenosti.className = "cas-udaj-hodnota";
-    hodnotaPripravenosti.textContent = "schválený přístup a potvrzené napájení 230 V";
-    radekPripravenosti.appendChild(hodnotaPripravenosti);
-    karta.appendChild(radekPripravenosti);
+    var text =
+      "Připraveno k instalaci " + pripravena + " ze " + POTREBA_MIST +
+      " (schválený přístup a potvrzené napájení 230 V) · schválená místa " + schvalena + " ze " + POTREBA_MIST + ".";
+    if (schvalena < POTREBA_MIST) text += " Zatím není vybráno dost míst pro dvě kamery.";
+    if (pripravena < POTREBA_MIST) text += " Instalace kamer zatím není připravená — chybí potvrzený přístup nebo napájení.";
+    return uzel("p", "cs-hero-drobne" + (pripravena < POTREBA_MIST ? " cs-hero-drobne-varuje" : ""), text);
+  }
 
-    if (pripravena < POTREBA_MIST) {
-      var varovaniInstalace = document.createElement("p");
-      varovaniInstalace.className = "cas-souhrn-varovani";
-      varovaniInstalace.textContent =
-        "Instalace kamer zatím není připravená — chybí potvrzený přístup nebo napájení.";
-      karta.appendChild(varovaniInstalace);
-    }
+  // Karta jedné osazené kamery: náhled, název, model, tři stavy, poznámka.
+  // Náhled jde přes stejnou nastavFotkuDoObrazku jako dřív — líné načítání
+  // i hláška „Náhled je jen v lokálním demu" tak fungují beze změny.
+  function vytvorKartuKamery(misto) {
+    var karta = uzel("div", "cs-kamera");
+    zpristupniKlikem(karta, misto.id);
+    karta.setAttribute("aria-label", "Detail místa " + (misto.nazev || "bez názvu"));
 
-    var meta = document.createElement("p");
-    meta.className = "karta-meta";
-    meta.textContent =
-      "Galerie náletu: " +
-      SNIMKY.length +
-      " snímků · s popisem " +
-      pocetSnimkuSPopisem() +
-      " · vybraná místa " +
-      vsechna.length;
-    karta.appendChild(meta);
+    var fotoObal = uzel("div", "cs-kamera-foto");
+    var obrazek = document.createElement("img");
+    obrazek.alt = "";
+    obrazek.loading = "lazy";
+    obrazek.decoding = "async";
+    obrazek.hidden = true;
+    var stavFotky = uzel("p", "cs-foto-stav", "Bez fotky");
+    fotoObal.appendChild(obrazek);
+    fotoObal.appendChild(stavFotky);
+    var maFotku = nastavFotkuDoObrazku(fotkaMista(misto), obrazek, stavFotky, "");
+    if (!maFotku) stavFotky.hidden = false;
+    karta.appendChild(fotoObal);
 
+    var telo = uzel("div", "cs-kamera-telo");
+    telo.appendChild(uzel("h3", "cs-kamera-nazev", misto.nazev || "(bez názvu)"));
+    telo.appendChild(uzel("p", "cs-kamera-model", String(misto.kamera).trim()));
+
+    var stavy = uzel("div", "cs-kamera-stavy");
+    stavyPripojeni(misto).forEach(function (s) {
+      var cip = chipStavu(s.nv + " cs-mini", s.popisek + " · " + s.text);
+      cip.title = textStavuPripojeni(s);
+      stavy.appendChild(cip);
+    });
+    telo.appendChild(stavy);
+
+    if (misto.poznamka) telo.appendChild(uzel("p", "cs-kamera-pozn", misto.poznamka));
+    karta.appendChild(telo);
     return karta;
   }
 
-  // ------------------------------------------------------------------
-  // Pruh s instalační návštěvou — fáze mezi výběrem míst (1) a prvním
-  // natáčením podle harmonogramu (2). Návštěva se hledá podle milníku
-  // mil-01b, ne podle čísla.
-  // ------------------------------------------------------------------
+  function vytvorHero() {
+    var vsechna = mista();
+    var nastaveni = App.obsah("nastaveni") || {};
+    var rozsah = nastaveni.rozsah && jeCislo(nastaveni.rozsah.kamery) ? nastaveni.rozsah.kamery : POTREBA_MIST;
+    var sKamerou = vsechna.filter(mistoMaKameru);
 
-  function vytvorPruhInstalace() {
-    var navsteva = najdiInstalacniNavstevu();
+    var hero = uzel("section", "cs-hero");
+    hero.appendChild(uzel("p", "cs-hero-stitek", "Kamery"));
 
-    var karta = document.createElement("section");
-    karta.className = "karta" + (navsteva ? " " + tridaStavu(navsteva.stav) : "");
+    var radekCisla = uzel("div", "cs-hero-cislo-radek");
+    radekCisla.appendChild(uzel("span", "cs-hero-cislo", sKamerou.length + " / " + rozsah));
+    radekCisla.appendChild(uzel("span", "cs-hero-popisek", "běží"));
+    hero.appendChild(radekCisla);
 
-    var nadpis = document.createElement("h3");
-    nadpis.className = "karta-nadpis";
-    if (navsteva) {
-      var casti = ["Instalace kamer — návštěva č. " + navsteva.cislo];
-      var termin = terminNavstevy(navsteva);
-      if (termin) casti.push(termin);
-      casti.push(STAVY_NAVSTEVY[navsteva.stav] || navsteva.stav || "");
-      nadpis.textContent = casti.join(", ");
+    hero.appendChild(vytvorRadekInstalace());
+    hero.appendChild(vytvorRadekPripravenosti(vsechna));
+
+    if (sKamerou.length) {
+      var mrizka = uzel("div", "cs-kamery");
+      sKamerou.forEach(function (misto) {
+        mrizka.appendChild(vytvorKartuKamery(misto));
+      });
+      hero.appendChild(mrizka);
     } else {
-      nadpis.textContent = "Instalace kamer — návštěva zatím není v plánu.";
+      hero.appendChild(uzel("p", "cs-hero-drobne", "Zatím žádné místo s osazenou kamerou."));
     }
-    karta.appendChild(nadpis);
-
-    var popis = document.createElement("p");
-    popis.className = "karta-meta";
-    popis.textContent =
-      "Kamery se osadí ještě před instalací buňkoviště a lešení, ať zachytí i tuhle fázi. " +
-      "U obou míst k tomu musí být potvrzený přístup, napájení 230 V a připojení k internetu.";
-    karta.appendChild(popis);
-
-    var akce = document.createElement("div");
-    akce.className = "karta-akce";
-    var odkaz = document.createElement("a");
-    odkaz.className = "btn btn-mala btn-sekundarni";
-    odkaz.href = "#navstevy";
-    odkaz.textContent = navsteva
-      ? "Návštěva č. " + navsteva.cislo + " → Návštěvy"
-      : "Otevřít Návštěvy";
-    akce.appendChild(odkaz);
-    karta.appendChild(akce);
-
-    return karta;
+    return hero;
   }
 
   // ------------------------------------------------------------------
-  // Přehledová mapa se všemi body (§A.5)
+  // Přehledová mapa se všemi body (§A.5) — karta
   // ------------------------------------------------------------------
 
   function vytvorPrehledovouMapu() {
-    var blok = document.createElement("section");
-    blok.className = "oddil cas-prehledova-mapa";
+    var blok = uzel("section", "cs-karta cs-karta-mapa");
 
-    var nadpis = document.createElement("h3");
-    nadpis.className = "podnadpis-sekce";
-    nadpis.textContent = "Mapa všech bodů";
-    blok.appendChild(nadpis);
+    var hlava = uzel("div", "cs-karta-hlava");
+    hlava.appendChild(uzel("h3", "cs-karta-titulek", "Mapa všech bodů"));
+    blok.appendChild(hlava);
 
-    var kontejner = document.createElement("div");
-    kontejner.className = "mapa mapa-velka";
+    var kontejner = uzel("div", "mapa mapa-velka");
     blok.appendChild(kontejner);
 
     var body = [];
@@ -1010,7 +1077,7 @@
         cislo: index + 1,
         popisek: (index + 1) + " · " + (m.nazev || "Místo"),
         id: m.id,
-        nejede: !m.kamera || !String(m.kamera).trim()
+        nejede: !mistoMaKameru(m)
       });
     });
     SNIMKY.forEach(function (s, index) {
@@ -1026,10 +1093,7 @@
     });
 
     if (!body.length) {
-      var prazdno = document.createElement("p");
-      prazdno.className = "karta-meta";
-      prazdno.textContent = "Zatím není zaneseno ani jedno místo se souřadnicemi.";
-      blok.appendChild(prazdno);
+      blok.appendChild(uzel("p", "cs-drobne", "Zatím není zaneseno ani jedno místo se souřadnicemi."));
       kontejner.remove();
       return blok;
     }
@@ -1045,22 +1109,15 @@
     });
     if (instance) zivyMapy.push(instance);
 
-    var legenda = document.createElement("p");
-    legenda.className = "cas-legenda";
-    legenda.textContent = "Velké číslované body = vybraná místa. Malé tečky = snímky z náletu. Klikem se otevře detail.";
-    blok.appendChild(legenda);
-
+    blok.appendChild(
+      uzel("p", "cs-legenda", "Velké číslované body = vybraná místa. Malé tečky = snímky z náletu. Klikem se otevře detail.")
+    );
     return blok;
   }
 
+  // Klik na marker místa otevře jeho detail v bočním panelu (dřív scroll na kartu).
   function prejdiNaMisto(id) {
-    var prvek = document.getElementById("misto-" + id);
-    if (!prvek) return;
-    prvek.scrollIntoView({ behavior: "smooth", block: "center" });
-    prvek.classList.add("cas-misto-zvyrazneno");
-    window.setTimeout(function () {
-      prvek.classList.remove("cas-misto-zvyrazneno");
-    }, 1800);
+    otevriPanelMista(id);
   }
 
   // ------------------------------------------------------------------
@@ -1172,7 +1229,7 @@
     form.appendChild(pole);
 
     // Koho o komentáři upozornit mailem. Sebe si člověk neoznačuje.
-    var vyberZminek = Util.vyberZminek({ vynech: (window.Auth && Auth.ja && Auth.ja.osoba_id) || null });
+    var vyberZminek = Util.vyberZminek({ vynech: (window.Auth && Auth.ja && Auth.ja.osoba_id) || null, vybrane: predvybraneZminky || [] });
     form.appendChild(vyberZminek.prvek);
 
     var tlacitko = document.createElement("button");
@@ -1978,7 +2035,7 @@
     radek.appendChild(label);
 
     var stitek = document.createElement("span");
-    stitek.className = "stitek " + tridaStitku;
+    stitek.className = "nv-stav " + tridaStitku;
     stitek.textContent = nazevStitku;
     radek.appendChild(stitek);
 
@@ -2007,7 +2064,7 @@
       radekSeStitkem(
         "Přístup",
         nazevStavu(misto.stav),
-        tridaStavu(misto.stav),
+        nvTridaMista(misto.stav),
         pristupCasti.join(" · ")
       )
     );
@@ -2015,13 +2072,13 @@
     var napajeni = napajeniMista(misto);
     var polozkaNapajeni = polozkaCiselniku(STAVY_NAPAJENI, napajeni.stav);
     obal.appendChild(
-      radekSeStitkem("Napájení 230 V", polozkaNapajeni.nazev, polozkaNapajeni.trida, napajeni.popis)
+      radekSeStitkem("Napájení 230 V", polozkaNapajeni.nazev, polozkaNapajeni.nv, napajeni.popis)
     );
 
     var internet = internetMista(misto);
     var polozkaInternetu = polozkaCiselniku(STAVY_INTERNETU, internet.stav);
     obal.appendChild(
-      radekSeStitkem("Internet", polozkaInternetu.nazev, polozkaInternetu.trida, internet.popis)
+      radekSeStitkem("Internet", polozkaInternetu.nazev, polozkaInternetu.nv, internet.popis)
     );
 
     return obal;
@@ -2088,43 +2145,35 @@
     return obal;
   }
 
-  function vytvorKartuMista(misto, poradiVSeznamu) {
-    var karta = document.createElement("article");
-    karta.className = "karta cas-misto " + tridaStavu(misto.stav);
-    karta.id = "misto-" + misto.id;
+  function sekcePanelu(nadpis) {
+    var sekce = uzel("section", "nv-panel-sekce");
+    if (nadpis) sekce.appendChild(uzel("h3", null, nadpis));
+    return sekce;
+  }
 
-    var hlavicka = document.createElement("div");
-    hlavicka.className = "karta-hlavicka";
+  // Obsah bočního panelu místa. Jeden sloupec, sekce oddělené jako
+  // .nv-panel-sekce; všechny dřívější akce karty (fotka, dotaz pro stavbu,
+  // připojení, úprava, smazání, komentáře) zůstaly, jen přesunuté sem.
+  // Mini mapa se zakládá až po showModal() panelu (volá se z obnovPanel).
+  function vytvorKartuMista(misto) {
+    var obal = uzel("div", "cs-detail");
 
-    var nadpis = document.createElement("h4");
-    nadpis.className = "karta-nadpis";
-    nadpis.textContent = poradiVSeznamu + " · " + (misto.nazev || "(bez názvu)");
-    hlavicka.appendChild(nadpis);
+    var horni = uzel("div", "nv-panel-akce");
+    horni.appendChild(chipStavu(nvTridaMista(misto.stav), nazevStavu(misto.stav)));
+    horni.appendChild(
+      uzel("span", "cs-detail-kamera" + (mistoMaKameru(misto) ? "" : " cs-detail-kamera-nejede"),
+        mistoMaKameru(misto) ? "Kamera: " + String(misto.kamera).trim() : "Bez osazené kamery")
+    );
+    obal.appendChild(horni);
 
-    var stitek = document.createElement("span");
-    stitek.className = "stitek " + tridaStavu(misto.stav);
-    stitek.textContent = nazevStavu(misto.stav);
-    hlavicka.appendChild(stitek);
+    var sekceFoto = sekcePanelu("Fotka");
+    sekceFoto.appendChild(vytvorFotkuMista(misto));
+    obal.appendChild(sekceFoto);
 
-    karta.appendChild(hlavicka);
-
-    var telo = document.createElement("div");
-    telo.className = "cas-misto-telo";
-
-    telo.appendChild(vytvorFotkuMista(misto));
-
-    var udaje = document.createElement("div");
-    udaje.className = "cas-misto-udaje";
-
-    if (misto.popis) {
-      var popis = document.createElement("p");
-      popis.className = "karta-popis";
-      popis.textContent = misto.popis;
-      udaje.appendChild(popis);
-    }
-
+    var sekceUdaje = sekcePanelu("Místo");
+    var udaje = uzel("div", "cas-misto-udaje");
+    if (misto.popis) udaje.appendChild(uzel("p", "karta-popis", misto.popis));
     udaje.appendChild(blokVysky(misto.vyska_nad_terenem_m, misto.nadmorska_vyska_m));
-
     [
       radekUdaje("Směr pohledu", misto.smer_pohledu),
       radekUdaje(
@@ -2141,91 +2190,77 @@
     ].forEach(function (radek) {
       if (radek) udaje.appendChild(radek);
     });
+    if (misto.poznamka) udaje.appendChild(uzel("p", "cas-poznamka", misto.poznamka));
+    sekceUdaje.appendChild(udaje);
+    obal.appendChild(sekceUdaje);
 
-    if (misto.poznamka) {
-      var poznamka = document.createElement("p");
-      poznamka.className = "cas-poznamka";
-      poznamka.textContent = misto.poznamka;
-      udaje.appendChild(poznamka);
-    }
-
-    telo.appendChild(udaje);
-
-    var mapaObal = document.createElement("div");
-    mapaObal.className = "cas-misto-mapa";
+    var sekceMapa = sekcePanelu("Poloha");
     if (misto.bod && Mapa.platnyBod(misto.bod.lat, misto.bod.lon)) {
-      var kontejnerMapy = document.createElement("div");
-      kontejnerMapy.className = "mapa mapa-mala";
-      mapaObal.appendChild(kontejnerMapy);
+      var kontejnerMapy = uzel("div", "mapa mapa-mala");
+      sekceMapa.appendChild(kontejnerMapy);
       var instance = Mapa.vytvor(kontejnerMapy, {
         lat: misto.bod.lat,
         lon: misto.bod.lon,
         zoom: Mapa.ZOOM_VYCHOZI,
         popisek: "Mapa místa " + (misto.nazev || ""),
-        nejede: !misto.kamera || !String(misto.kamera).trim()
+        nejede: !mistoMaKameru(misto)
       });
-      if (instance) zivyMapy.push(instance);
+      // Mapy panelu mají vlastní seznam: překreslení sekce (polling) ruší
+      // jen mapy stránky, panel je obnovuje sám a předtím je uklidí.
+      if (instance) zivyMapyPanelu.push(instance);
     } else {
-      var bezBodu = document.createElement("p");
-      bezBodu.className = "karta-meta";
-      bezBodu.textContent = "Poloha zatím není určena — doplní se v úpravě místa nebo výběrem snímku z galerie.";
-      mapaObal.appendChild(bezBodu);
+      sekceMapa.appendChild(
+        uzel("p", "karta-meta", "Poloha zatím není určena — doplní se v úpravě místa nebo výběrem snímku z galerie.")
+      );
     }
-    telo.appendChild(mapaObal);
+    obal.appendChild(sekceMapa);
 
-    karta.appendChild(telo);
+    // Přístup / napájení / internet — tři řádky, které rozhodují o osazení.
+    var sekcePripojeni = sekcePanelu("Přístup a připojení");
+    sekcePripojeni.appendChild(vytvorRadkyPripojeni(misto));
+    obal.appendChild(sekcePripojeni);
 
-    // Přístup / napájení / internet — mimo mřížku těla, ať jsou tři řádky
-    // vedle sebe přes celou kartu a daly se přečíst jedním pohledem.
-    karta.appendChild(vytvorRadkyPripojeni(misto));
-
-    var akce = document.createElement("div");
-    akce.className = "karta-akce";
+    var sekceAkce = sekcePanelu("Akce");
+    var akce = uzel("div", "karta-akce");
 
     // Kopírování je čtení, ne úprava — má ho i čtenář.
-    var kopirovat = document.createElement("button");
+    var kopirovat = uzel("button", "btn btn-mala btn-sekundarni", "Kopírovat dotaz pro stavbu");
     kopirovat.type = "button";
-    kopirovat.className = "btn btn-mala btn-sekundarni";
-    kopirovat.textContent = "Kopírovat dotaz pro stavbu";
     kopirovat.addEventListener("click", function () {
       zkopirujDotazProStavbu(misto);
     });
     akce.appendChild(kopirovat);
 
     if (smiUpravit()) {
-      var pripojeni = document.createElement("button");
+      var pripojeni = uzel("button", "btn btn-mala btn-sekundarni", "Přístup, napájení, internet");
       pripojeni.type = "button";
-      pripojeni.className = "btn btn-mala btn-sekundarni";
-      pripojeni.textContent = "Přístup, napájení, internet";
       pripojeni.addEventListener("click", function () {
         otevriFormularPripojeni(misto);
       });
       akce.appendChild(pripojeni);
 
-      var upravit = document.createElement("button");
+      var upravit = uzel("button", "btn btn-mala btn-sekundarni", "Upravit");
       upravit.type = "button";
-      upravit.className = "btn btn-mala btn-sekundarni";
-      upravit.textContent = "Upravit";
       upravit.addEventListener("click", function () {
         otevriFormularMista(misto);
       });
       akce.appendChild(upravit);
 
-      var smazat = document.createElement("button");
+      var smazat = uzel("button", "btn btn-mala btn-nebezpecny", "Smazat");
       smazat.type = "button";
-      smazat.className = "btn btn-mala btn-nebezpecny";
-      smazat.textContent = "Smazat";
       smazat.addEventListener("click", function () {
         smazMisto(misto);
       });
       akce.appendChild(smazat);
     }
+    sekceAkce.appendChild(akce);
+    obal.appendChild(sekceAkce);
 
-    karta.appendChild(akce);
+    var sekceKomentare = sekcePanelu("");
+    sekceKomentare.appendChild(vytvorKomentare(misto.id));
+    obal.appendChild(sekceKomentare);
 
-    karta.appendChild(vytvorKomentare(misto.id));
-
-    return karta;
+    return obal;
   }
 
   // ------------------------------------------------------------------
@@ -2647,52 +2682,96 @@
   }
 
   // ------------------------------------------------------------------
-  // Sekce vybraných míst
+  // Tabulka míst
   // ------------------------------------------------------------------
 
-  function vytvorSekciMist() {
-    var blok = document.createElement("section");
-    blok.className = "oddil cas-mista";
+  function vytvorTecky(misto) {
+    var obal = uzel("span", "cs-tecky");
+    stavyPripojeni(misto).forEach(function (s) {
+      var tecka = uzel("span", "cs-tecka " + s.nv, s.pismeno);
+      var text = textStavuPripojeni(s);
+      tecka.title = text;
+      tecka.setAttribute("role", "img");
+      tecka.setAttribute("aria-label", text);
+      obal.appendChild(tecka);
+    });
+    return obal;
+  }
 
-    var hlava = document.createElement("div");
-    hlava.className = "sekce-hlavicka";
-    var nadpis = document.createElement("h3");
-    nadpis.className = "podnadpis-sekce";
-    nadpis.textContent = "Vybraná místa";
-    hlava.appendChild(nadpis);
+  function vytvorRadekMista(misto, cisloMista) {
+    var zamitnuto = misto.stav === "zamitnuto";
+    var radek = uzel("li", "nv-radek cs-radek" + (zamitnuto ? " cs-radek-zamitnuto" : ""));
+    zpristupniKlikem(radek, misto.id);
+    radek.setAttribute("aria-label", "Detail místa " + cisloMista + ", " + (misto.nazev || "bez názvu"));
 
-    if (smiUpravit()) {
-      var pridat = document.createElement("button");
-      pridat.type = "button";
-      pridat.className = "btn btn-mala btn-primarni";
-      pridat.textContent = "Přidat místo";
-      pridat.addEventListener("click", function () {
-        otevriFormularMista(null);
-      });
-      hlava.appendChild(pridat);
+    radek.appendChild(uzel("span", "cs-cislo" + (mistoMaKameru(misto) ? " cs-cislo-kamera" : ""), String(cisloMista)));
+
+    var nazev = uzel("div", "nv-radek-nazev");
+    nazev.appendChild(uzel("span", "cs-radek-text", misto.nazev || "(bez názvu)"));
+    var v = dopocitejVysky(misto.vyska_nad_terenem_m, misto.nadmorska_vyska_m);
+    // Výšky smí vidět jen super admin (viz smiVidetVysky) — ostatním zůstane
+    // jedna řádka bez podtitulku.
+    if (smiVidetVysky() && v.vyska !== null) {
+      nazev.appendChild(uzel("span", "cs-radek-pod", cesky(v.vyska) + " m nad terénem"));
     }
-    blok.appendChild(hlava);
+    radek.appendChild(nazev);
 
+    var meta = uzel("span", "nv-radek-meta");
+    meta.appendChild(
+      uzel("span", "cs-radek-model" + (mistoMaKameru(misto) ? "" : " cs-radek-model-prazdny"),
+        mistoMaKameru(misto) ? String(misto.kamera).trim() : "—")
+    );
+    meta.appendChild(vytvorTecky(misto));
+    meta.appendChild(chipStavu(nvTridaMista(misto.stav), nazevStavu(misto.stav)));
+    radek.appendChild(meta);
+    return radek;
+  }
+
+  function vytvorSkupinu(titulek, zaznamy) {
+    var skupina = uzel("div", "nv-skupina");
+    var h = uzel("h3", "nv-rok");
+    h.appendChild(uzel("span", null, titulek));
+    h.appendChild(uzel("span", "nv-rok-pocet", zaznamy.length + " " + (zaznamy.length === 1 ? "místo" : zaznamy.length < 5 ? "místa" : "míst")));
+    skupina.appendChild(h);
+    var seznam = uzel("ol", "nv-seznam");
+    zaznamy.forEach(function (z) {
+      seznam.appendChild(vytvorRadekMista(z.misto, z.cislo));
+    });
+    skupina.appendChild(seznam);
+    return skupina;
+  }
+
+  // Číslo v rámečku je pořadí v seznamu míst, stejné jako číslo markeru na
+  // přehledové mapě. Zamítnutá místa jdou na konec, do vlastní skupiny.
+  function vytvorTabulkuMist() {
     var vsechna = mista();
     if (!vsechna.length) {
-      var prazdno = document.createElement("div");
-      prazdno.className = "prazdny-stav";
-      var text = document.createElement("p");
-      text.className = "prazdny-stav-text";
-      text.textContent = "Zatím není vybráno žádné místo. Vyber ho z galerie snímků níže.";
-      prazdno.appendChild(text);
-      blok.appendChild(prazdno);
-      return blok;
+      var prazdno = uzel("div", "prazdny-stav");
+      prazdno.appendChild(uzel("p", "prazdny-stav-text", "Zatím není vybráno žádné místo. Vyber ho z galerie snímků níže."));
+      return prazdno;
     }
 
-    var seznam = document.createElement("div");
-    seznam.className = "cas-seznam-mist";
-    vsechna.forEach(function (misto, index) {
-      seznam.appendChild(vytvorKartuMista(misto, index + 1));
+    var zaznamy = vsechna.map(function (m, index) {
+      return { misto: m, cislo: index + 1 };
     });
-    blok.appendChild(seznam);
+    var aktivni = zaznamy.filter(function (z) {
+      return z.misto.stav !== "zamitnuto";
+    });
+    var zamitnuta = zaznamy.filter(function (z) {
+      return z.misto.stav === "zamitnuto";
+    });
 
-    return blok;
+    var tabulka = uzel("div", "nv-tabulka cs-tabulka");
+    var hlava = uzel("div", "nv-tabulka-hlava");
+    hlava.setAttribute("aria-hidden", "true");
+    ["#", "Místo", "Kamera", "Připojení", "Stav"].forEach(function (t) {
+      hlava.appendChild(uzel("span", null, t));
+    });
+    tabulka.appendChild(hlava);
+
+    if (aktivni.length) tabulka.appendChild(vytvorSkupinu("Vybraná místa", aktivni));
+    if (zamitnuta.length) tabulka.appendChild(vytvorSkupinu("Zamítnutá", zamitnuta));
+    return tabulka;
   }
 
   // ------------------------------------------------------------------
@@ -2825,67 +2904,76 @@
     return dlazdice;
   }
 
+  // Galerie je sbalená; dlaždice se skládají až při prvním rozbalení, ať
+  // postupné načítání náhledů (IntersectionObserver) pozoruje už viditelné
+  // prvky — prvky ve sbaleném <details> žádný průsečík nemají.
   function vytvorGalerii() {
-    var blok = document.createElement("section");
-    blok.className = "oddil cas-galerie";
+    var blok = uzel("details", "cs-galerie cs-karta");
+    blok.open = galerieOtevrena;
 
-    var hlava = document.createElement("div");
-    hlava.className = "sekce-hlavicka";
-    var nadpis = document.createElement("h3");
-    nadpis.className = "podnadpis-sekce";
-    nadpis.textContent = "Galerie náletu";
-    hlava.appendChild(nadpis);
-    var meta = document.createElement("span");
-    meta.className = "karta-meta";
-    meta.textContent = SNIMKY.length + " finálních snímků z 26. 8. 2026";
-    hlava.appendChild(meta);
-    blok.appendChild(hlava);
-
-    blok.appendChild(
-      vytvorFiltr(aktivniFiltr, function (kod) {
-        // Překreslení sekce srazí stránku nahoru — uživatel je přitom u galerie
-        // dole. Zapamatujeme si pozici a vrátíme ji (Franta 30. 8.).
-        var pozice = window.scrollY;
-        aktivniFiltr = kod;
-        App.prekresli();
-        window.scrollTo(0, pozice);
-      })
+    var souhrn = uzel(
+      "summary",
+      "cs-galerie-souhrn",
+      "Snímky z náletu · " + SNIMKY.length + " · s popisem " + pocetSnimkuSPopisem() + " · vybraná místa " + mista().length
     );
+    blok.appendChild(souhrn);
 
-    var vyfiltrovane = SNIMKY.map(function (snimek, index) {
-      return { snimek: snimek, index: index };
-    }).filter(function (zaznam) {
-      return projdeFiltrem(zaznam.snimek, aktivniFiltr);
-    });
+    var telo = uzel("div", "cs-galerie-telo");
+    blok.appendChild(telo);
+    var naplneno = false;
 
-    var pocitadlo = document.createElement("p");
-    pocitadlo.className = "karta-meta cas-pocitadlo";
-    pocitadlo.textContent = "Zobrazeno " + vyfiltrovane.length + " ze " + SNIMKY.length + " snímků.";
-    blok.appendChild(pocitadlo);
+    function naplnit() {
+      if (naplneno) return;
+      naplneno = true;
 
-    if (!vyfiltrovane.length) {
-      var prazdno = document.createElement("div");
-      prazdno.className = "prazdny-stav";
-      var text = document.createElement("p");
-      text.className = "prazdny-stav-text";
-      text.textContent = "Tomuto filtru neodpovídá žádný snímek.";
-      prazdno.appendChild(text);
-      blok.appendChild(prazdno);
-      return blok;
+      telo.appendChild(uzel("p", "cs-drobne", SNIMKY.length + " finálních snímků z 26. 8. 2026"));
+
+      telo.appendChild(
+        vytvorFiltr(aktivniFiltr, function (kod) {
+          // Překreslení sekce srazí stránku nahoru — uživatel je přitom u galerie
+          // dole. Zapamatujeme si pozici a vrátíme ji (Franta 30. 8.).
+          var pozice = window.scrollY;
+          aktivniFiltr = kod;
+          App.prekresli();
+          window.scrollTo(0, pozice);
+        })
+      );
+
+      var vyfiltrovane = SNIMKY.map(function (snimek, index) {
+        return { snimek: snimek, index: index };
+      }).filter(function (zaznam) {
+        return projdeFiltrem(zaznam.snimek, aktivniFiltr);
+      });
+
+      telo.appendChild(
+        uzel("p", "karta-meta cas-pocitadlo", "Zobrazeno " + vyfiltrovane.length + " ze " + SNIMKY.length + " snímků.")
+      );
+
+      if (!vyfiltrovane.length) {
+        var prazdno = uzel("div", "prazdny-stav");
+        prazdno.appendChild(uzel("p", "prazdny-stav-text", "Tomuto filtru neodpovídá žádný snímek."));
+        telo.appendChild(prazdno);
+        return;
+      }
+
+      var mrizka = uzel("div", "galerie-mrizka");
+      var kNacteni = [];
+      vyfiltrovane.forEach(function (zaznam) {
+        mrizka.appendChild(vytvorDlazdici(zaznam.snimek, zaznam.index, kNacteni));
+      });
+      telo.appendChild(mrizka);
+
+      // načítání náhledů až ve chvíli, kdy dlaždice doroluje do výřezu (§A.6)
+      window.setTimeout(function () {
+        zapniPozorovatele(kNacteni);
+      }, 0);
     }
 
-    var mrizka = document.createElement("div");
-    mrizka.className = "galerie-mrizka";
-    var kNacteni = [];
-    vyfiltrovane.forEach(function (zaznam) {
-      mrizka.appendChild(vytvorDlazdici(zaznam.snimek, zaznam.index, kNacteni));
+    blok.addEventListener("toggle", function () {
+      galerieOtevrena = blok.open;
+      if (blok.open) naplnit();
     });
-    blok.appendChild(mrizka);
-
-    // načítání náhledů až ve chvíli, kdy dlaždice doroluje do výřezu (§A.6)
-    window.setTimeout(function () {
-      zapniPozorovatele(kNacteni);
-    }, 0);
+    if (blok.open) naplnit();
 
     return blok;
   }
@@ -3237,6 +3325,165 @@
   }
 
   // ------------------------------------------------------------------
+  // Boční panel detailu místa (dialog.modal-okno.nv-panel)
+  // ------------------------------------------------------------------
+  //
+  // Stav panelu (id, odkaz na dialog) se maže SYNCHRONNĚ v zavírací funkci:
+  // událost "close" u <dialog> chodí až s dalším vykreslením stránky a v kartě
+  // na pozadí nepřijde vůbec. "close" (Esc) proto jen volá tutéž idempotentní
+  // funkci jako tlačítko ×.
+
+  function zrusMapyPanelu() {
+    zivyMapyPanelu.forEach(function (mapa) {
+      if (mapa && typeof mapa.znic === "function") {
+        try {
+          mapa.znic();
+        } catch (chyba) {
+          console.warn("Časosběr — úklid mapy panelu selhal:", chyba);
+        }
+      }
+    });
+    zivyMapyPanelu = [];
+  }
+
+  function poradiMista(id) {
+    var vsechna = mista();
+    for (var i = 0; i < vsechna.length; i++) {
+      if (vsechna[i].id === id) return i + 1;
+    }
+    return 0;
+  }
+
+  function otevriPanelMista(id) {
+    var misto = najdiPodleId(mista(), id);
+    if (!misto) return;
+    if (panel && !panel.hotovo && panel.id === id) {
+      return;
+    }
+    if (panel) panel.zavri();
+
+    var dlg = document.createElement("dialog");
+    dlg.className = "modal-okno nv-panel cs-panel";
+    dlg.setAttribute("aria-label", "Detail místa");
+
+    var hlavicka = uzel("div", "modal-hlavicka");
+    var nadpis = uzel("h3", "modal-nadpis", "");
+    var zavriBtn = uzel("button", "modal-zavrit", "×");
+    zavriBtn.type = "button";
+    zavriBtn.setAttribute("aria-label", "Zavřít");
+    hlavicka.appendChild(nadpis);
+    hlavicka.appendChild(zavriBtn);
+
+    var telo = uzel("div", "modal-telo");
+    dlg.appendChild(hlavicka);
+    dlg.appendChild(telo);
+    document.body.appendChild(dlg);
+
+    var stav = { id: id, dlg: dlg, telo: telo, nadpis: nadpis, hotovo: false, zavri: null };
+
+    function dokonci() {
+      if (stav.hotovo) return;
+      stav.hotovo = true;
+      if (panel === stav) panel = null;
+      zrusMapyPanelu();
+      dlg.remove();
+    }
+    function zavri() {
+      if (dlg.open) dlg.close();
+      dokonci();
+    }
+    stav.zavri = zavri;
+    panel = stav;
+
+    zavriBtn.addEventListener("click", zavri);
+    dlg.addEventListener("click", function (udalost) {
+      if (udalost.target === dlg) zavri();
+    });
+    dlg.addEventListener("close", dokonci);
+
+    dlg.showModal();
+    // Mapa až po showModal: dřív je kontejner neviditelný (mapa.js si počká,
+    // až bude vidět, ale takhle se nemusí čekat vůbec).
+    obnovPanel();
+  }
+
+  // Znovu naplní otevřený panel čerstvými daty (po uložení, po pollingu).
+  // Panel se nezavírá; rozepsaný komentář, výběr označených lidí, pozice
+  // posuvníku i fokus se zachovají.
+  function obnovPanel() {
+    if (!panel || panel.hotovo) return;
+    var misto = najdiPodleId(mista(), panel.id);
+    if (!misto) {
+      panel.zavri(); // místo se smazalo (nebo zmizelo z dat)
+      return;
+    }
+
+    var telo = panel.telo;
+    var rozepsany = telo.querySelector(".komentar-formular textarea");
+    var text = rozepsany ? rozepsany.value : "";
+    var mamFokus = !!rozepsany && document.activeElement === rozepsany;
+    var vyberOd = mamFokus ? rozepsany.selectionStart : 0;
+    var vyberDo = mamFokus ? rozepsany.selectionEnd : 0;
+    var oznaceni = [];
+    Array.prototype.forEach.call(telo.querySelectorAll(".komentar-formular input[type=checkbox]:checked"), function (c) {
+      oznaceni.push(c.value);
+    });
+    var posun = telo.scrollTop;
+
+    zrusMapyPanelu();
+    telo.textContent = "";
+    panel.nadpis.textContent = poradiMista(misto.id) + " · " + (misto.nazev || "(bez názvu)");
+    // Označené lidi předáme do Util.vyberZminek (ne ručním checked): jen tak
+    // sedí počítadlo a rozbalení výběru, protože „change" se programově nevolá.
+    predvybraneZminky = oznaceni;
+    telo.appendChild(vytvorKartuMista(misto));
+    predvybraneZminky = null;
+
+    var novy = telo.querySelector(".komentar-formular textarea");
+    if (novy && text) {
+      novy.value = text;
+      if (mamFokus) {
+        try {
+          novy.focus({ preventScroll: true });
+          novy.setSelectionRange(vyberOd, vyberDo);
+        } catch (chyba) {
+          /* fokus je jen vlídnost */
+        }
+      }
+    }
+    telo.scrollTop = posun;
+  }
+
+  // Odkaz „#casosber/<id>" otevře rovnou detail místa. Hash se hned vrátí na
+  // „#casosber" (replaceState hashchange nevyvolá), ať se panel neotvírá
+  // znovu při každém obnovení dat.
+  function otevriZHashe() {
+    var id = window.App && typeof App.parametrHashe === "function" ? App.parametrHashe() : "";
+    if (!id) return;
+    try {
+      history.replaceState(null, "", "#casosber");
+    } catch (chyba) {
+      /* bez history API necháme hash být */
+    }
+    if (panel || !najdiPodleId(mista(), id)) return;
+    window.setTimeout(function () {
+      otevriPanelMista(id);
+    }, 0);
+  }
+
+  // Odchod z Časosběru (jiný hash) panel zavře — dialog žije mimo #obsah
+  // a jinak by zůstal viset nad cizí sekcí s mapami, které nikdo neuklidí.
+  window.addEventListener("hashchange", function () {
+    var sekce = (window.location.hash || "").replace("#", "").split("/")[0];
+    if (sekce === "casosber") return;
+    if (panel) panel.zavri();
+    // ostatní sekce tyhle úklidy nevolají, mapy a pozorovatel by do dalšího
+    // vstupu do Časosběru zbytečně žily
+    zrusPozorovatele();
+    zrusMapy();
+  });
+
+  // ------------------------------------------------------------------
   // Vykreslení celé sekce
   // ------------------------------------------------------------------
 
@@ -3248,25 +3495,30 @@
     zrusPozorovatele();
     zrusMapy();
 
-    var hlava = document.createElement("div");
-    hlava.className = "sekce-hlava";
-    var nadpis = document.createElement("h2");
-    nadpis.textContent = "Časosběr";
-    hlava.appendChild(nadpis);
-    kontejner.appendChild(hlava);
+    var koren = uzel("div", "nv cs");
 
-    var uvod = document.createElement("p");
-    uvod.className = "podnadpis-sekce";
-    uvod.textContent =
-      "Kam pověsit dvě časosběrné kamery na tři roky. Místa se vybírají ze snímků z náletu 26. 8. 2026, " +
-      "přístup k nim pak domlouvá PORR a Emauzský klášter s majiteli.";
-    kontejner.appendChild(uvod);
+    var hlava = uzel("header", "nv-hlava");
+    hlava.appendChild(uzel("h2", null, "Časosběr"));
+    var akceHlavy = uzel("div", "nv-hlava-akce");
+    if (smiUpravit()) {
+      var pridat = uzel("button", "btn btn-primarni btn-mala", "+ Místo");
+      pridat.type = "button";
+      pridat.addEventListener("click", function () {
+        otevriFormularMista(null);
+      });
+      akceHlavy.appendChild(pridat);
+    }
+    hlava.appendChild(akceHlavy);
+    koren.appendChild(hlava);
 
-    kontejner.appendChild(vytvorPruhInstalace());
-    kontejner.appendChild(vytvorSouhrn());
-    kontejner.appendChild(vytvorPrehledovouMapu());
-    kontejner.appendChild(vytvorSekciMist());
-    kontejner.appendChild(vytvorGalerii());
+    koren.appendChild(vytvorHero());
+    koren.appendChild(vytvorPrehledovouMapu());
+    koren.appendChild(vytvorTabulkuMist());
+    koren.appendChild(vytvorGalerii());
+    kontejner.appendChild(koren);
+
+    obnovPanel();
+    otevriZHashe();
   }
 
   App.registrujSekci("casosber", vykresli);
