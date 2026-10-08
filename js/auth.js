@@ -71,6 +71,13 @@ var Auth = (function () {
   var varovaniPovyseniVypsano = false; // aby console.warn pri povyseni role nespamoval na kazdy polling
   var demoRoleNastavena = null; // rucne prepnuta role v demo rezimu (Auth.nastavDemoRoli)
 
+  // NÁHLED „Zobrazit jako" (Franta 8. 10. 2026). Superadmin si v ostrém
+  // provozu prohlédne kokpit očima jiného člověka. Mění se jen to, co appka
+  // UKAZUJE — efektivní role a strana (osoba_id). Token, přihlášení ani
+  // skutečná role se nemění a app.js po dobu náhledu zamkne zápis
+  // (GH.init s jeZapis:false), takže se pod cizí rolí nic neuloží.
+  var nahled = null; // { login, role, osoba_id, jmeno }
+
   var ZNAME_ROLE = { superadmin: true, admin: true, editor: true, ctenar: true };
 
   // ---- DEMO REZIM (dodatek §E) ----------------------------------------------
@@ -345,6 +352,7 @@ var Auth = (function () {
   // ---- odhlaseni: vymaze pamet i localStorage a prenacte stranku ----
 
   function odhlas(duvod) {
+    nahled = null;
     ja = null;
     role = null;
     roleZTokenu = null;
@@ -368,7 +376,8 @@ var Auth = (function () {
 
   function jePisar() {
     zajistiDemoPrihlaseni();
-    return role !== null && role !== "ctenar";
+    var r = efektivniRole();
+    return r !== null && r !== "ctenar";
   }
 
   // ---- ktera role z pristupy.json smi projit vzhledem k urovni tokenu (oprava povyseni) ----
@@ -443,10 +452,36 @@ var Auth = (function () {
     }
   }
 
+  // ---- náhled „Zobrazit jako" ----
+
+  function efektivniRole() {
+    return nahled ? nahled.role : role;
+  }
+
+  // cil = { login, role, osoba_id, jmeno } nebo null (konec náhledu).
+  // Zapnout smí jen ten, kdo je SKUTEČNĚ superadmin; v demu má appka
+  // vlastní přepínač rolí, tady by se to jen pletlo.
+  function nastavNahled(cil) {
+    if (!cil) {
+      nahled = null;
+      return true;
+    }
+    if (jeDemo() || role !== "superadmin") return false;
+    if (!Object.prototype.hasOwnProperty.call(ZNAME_ROLE, cil.role)) return false;
+    nahled = {
+      login: cil.login || null,
+      role: cil.role,
+      osoba_id: cil.osoba_id || null,
+      jmeno: cil.jmeno || ""
+    };
+    return true;
+  }
+
   // ---- kontrola konkretniho opravneni ----
 
   function can(kod) {
     zajistiDemoPrihlaseni();
+    var role = efektivniRole(); // v náhledu práva toho, za koho se díváme
     if (role === "superadmin") {
       return true; // pojistka - superadmin ma vzdy vse, i kdyby byla matice rozbita
     }
@@ -472,14 +507,28 @@ var Auth = (function () {
     jeDemo: jeDemo,
     prihlasDemo: prihlasDemo,
     nastavDemoRoli: nastavDemoRoli,
+    nastavNahled: nastavNahled,
     _startovniKontrola: startovniKontrola,
     get ja() {
       zajistiDemoPrihlaseni();
+      if (nahled && ja) {
+        // Kopie, ne úprava skutečné identity — po náhledu se nic nemusí vracet.
+        return { id: nahled.login || ja.id, jmeno: nahled.jmeno || ja.jmeno,
+                 role: nahled.role, osoba_id: nahled.osoba_id };
+      }
       return ja;
     },
     get role() {
       zajistiDemoPrihlaseni();
+      return efektivniRole();
+    },
+    // Skutečná role bez náhledu — podle ní se ukazuje přepínač „Zobrazit jako".
+    get skutecnaRole() {
+      zajistiDemoPrihlaseni();
       return role;
+    },
+    get nahled() {
+      return nahled ? { login: nahled.login, role: nahled.role, jmeno: nahled.jmeno } : null;
     },
     get roleZTokenu() {
       zajistiDemoPrihlaseni();

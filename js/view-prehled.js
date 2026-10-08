@@ -424,11 +424,15 @@
     // vidět dřív, než ta doba doběhne.
     if (konecSmlouvy) {
       var veta = "Smlouva pokrývá " + rozsah.mesicu + " měsíců dokumentace, tedy do " +
-        Util.formatDatum(konecSmlouvy) + ".";
+        Util.formatDatum(konecSmlouvy) +
+        (rozsah.termin_objednavky ? ", termín objednávky je " + Util.formatDatum(rozsah.termin_objednavky) : "") +
+        ".";
       var navic = nastaveni.predani ? rozdilMesicu(konecSmlouvy, nastaveni.predani) : 0;
       if (navic > 0) {
+        // Upravená objednávka z 10. 9. 2026 prodloužení obsahuje — řeší se
+        // dodatkem, není to otevřená otázka.
         veta += " Stavba se předává " + Util.formatDatum(nastaveni.predani) + ", takže zhruba " +
-          navic + " měsíců dokumentace je navíc nad rámec smlouvy a řeší se dodatkem k objednávce.";
+          navic + " měsíců dokumentace je navíc. Objednávka s tím počítá a prodlouží se dodatkem.";
       }
       html += '<p class="karta-meta" style="margin:0 0 12px">' + esc(veta) + "</p>";
 

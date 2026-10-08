@@ -855,6 +855,127 @@
     if (roleEl && window.Auth && Auth.role) {
       roleEl.textContent = nazevRole(Auth.role);
     }
+    zajistiVyberNahledu();
+  }
+
+  // ---- „Zobrazit jako" — náhled očima jiného člověka (jen superadmin) ----
+  //
+  // Franta 8. 10. 2026: chce vidět, co vidí ostatní. Výběr je v hlavičce jen
+  // pro SKUTEČNÉHO superadmina (Auth.skutecnaRole); v demu má appka vlastní
+  // přepínač rolí. Náhled mění jen to, co appka ukazuje (role a strana
+  // vybraného člověka). Zápis je po dobu náhledu zamčený přes GH.init, takže
+  // se pod cizí rolí nic neuloží — ani komentář, ani fotka.
+
+  function lidePodleLoginu() {
+    var mapa = {};
+    (App.polozky("lide") || []).forEach(function (o) {
+      if (o && !o.smazano && o.ma_pristup) mapa[o.ma_pristup] = o;
+    });
+    return mapa;
+  }
+
+  function zajistiVyberNahledu() {
+    var obal = document.querySelector(".hlavicka-uzivatel");
+    if (!obal || !window.Auth) return;
+    var vyber = document.getElementById("nahled-vyber");
+    var smi = !(typeof Auth.jeDemo === "function" && Auth.jeDemo()) && Auth.skutecnaRole === "superadmin";
+    if (!smi) {
+      if (vyber) vyber.hidden = true;
+      return;
+    }
+    if (!vyber) {
+      vyber = document.createElement("select");
+      vyber.id = "nahled-vyber";
+      vyber.className = "nahled-vyber";
+      vyber.setAttribute("aria-label", "Zobrazit kokpit jako jiný člověk");
+      vyber.addEventListener("change", function () { zapniNahled(vyber.value); });
+      obal.insertBefore(vyber, document.getElementById("btn-odhlasit"));
+    }
+    vyber.hidden = false;
+
+    // Možnosti se skládají z dat pokaždé znovu — lidé i jejich role se mění.
+    var uzivatele = (App.obsah("pristupy") || {}).uzivatele || {};
+    var lide = lidePodleLoginu();
+    var aktualni = Auth.nahled ? Auth.nahled.login : "";
+    var loginy = Object.keys(uzivatele).filter(function (login) {
+      var u = uzivatele[login];
+      return u && u.aktivni !== false && u.role !== "superadmin";
+    });
+    // náš tým nahoru, pak stavba, uvnitř podle jména
+    loginy.sort(function (a, b) {
+      var oa = lide[a] || {};
+      var ob = lide[b] || {};
+      var sa = oa.strana === "FD" ? 0 : 1;
+      var sb = ob.strana === "FD" ? 0 : 1;
+      if (sa !== sb) return sa - sb;
+      return String(oa.jmeno || a).localeCompare(String(ob.jmeno || b), "cs");
+    });
+    var html = ['<option value="">' + (aktualni ? "← Zpět na sebe" : "Zobrazit jako…") + "</option>"];
+    loginy.forEach(function (login) {
+      var osoba = lide[login] || {};
+      var popis = (osoba.jmeno || login) + " — " + nazevRole(uzivatele[login].role) +
+        (osoba.strana ? " · " + osoba.strana : "");
+      html.push('<option value="' + Util.esc(login) + '"' + (login === aktualni ? " selected" : "") + ">" +
+        Util.esc(popis) + "</option>");
+    });
+    vyber.innerHTML = html.join("");
+  }
+
+  function zapniNahled(login) {
+    var cil = null;
+    if (login) {
+      var uzivatel = ((App.obsah("pristupy") || {}).uzivatele || {})[login];
+      if (!uzivatel) return;
+      var osoba = lidePodleLoginu()[login] || null;
+      cil = {
+        login: login,
+        role: uzivatel.role,
+        osoba_id: osoba ? osoba.id : null,
+        jmeno: osoba ? osoba.jmeno : login
+      };
+    }
+    if (!Auth.nastavNahled(cil)) {
+      App.toast("Náhled se nepodařilo zapnout.", "chyba");
+      return;
+    }
+    // Zápis zamknout po celou dobu náhledu, po návratu vrátit podle skutečné role.
+    if (window.GH && typeof GH.init === "function") {
+      GH.init({ token: Auth.token, jeZapis: cil ? false : Auth.jePisar() });
+    }
+    ukazPruhNahledu();
+    nastavHlavicku();
+    nastavViditelnostSekci();
+    ohlasZmenuRole();
+    App.toast(cil ? "Vidíš kokpit jako " + cil.jmeno + ". Nic se neukládá." : "Zpět ve svém pohledu.", "info");
+    if (!maPravoNaSekci(aktualniSekce || ziskejSekciZHashe())) {
+      App.jdiNa("#prehled");
+      return;
+    }
+    App.prekresli();
+  }
+
+  function ukazPruhNahledu() {
+    var hlavicka = document.querySelector(".hlavicka");
+    var pruh = document.getElementById("nahled-pruh");
+    var nahled = window.Auth ? Auth.nahled : null;
+    if (!nahled) {
+      if (pruh) pruh.hidden = true;
+      return;
+    }
+    if (!pruh) {
+      pruh = App.el("div", "nahled-pruh");
+      pruh.id = "nahled-pruh";
+      pruh.setAttribute("role", "status");
+      if (hlavicka) hlavicka.insertBefore(pruh, hlavicka.firstChild);
+    }
+    while (pruh.firstChild) pruh.removeChild(pruh.firstChild);
+    pruh.appendChild(App.el("span", "nahled-pruh-text",
+      "Náhled: vidíš kokpit jako " + nahled.jmeno + " · " + nazevRole(nahled.role) + ". Nic se neukládá."));
+    var zpet = App.el("button", "btn btn-mala btn-sekundarni", "Zpět na sebe");
+    zpet.type = "button";
+    zpet.addEventListener("click", function () { zapniNahled(""); });
+    pruh.appendChild(zpet);
+    pruh.hidden = false;
   }
 
   // Schova v navigaci odkazy na sekce, na ktere prihlaseny clovek nema pravo

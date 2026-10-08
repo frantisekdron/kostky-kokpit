@@ -4529,3 +4529,42 @@ details.odpovedi[open] > summary::before {
   .listecek,
   .listecky-prepinac::before { transition: none; }
 }
+
+/* ---- Náhled „Zobrazit jako" — jen superadmin (js/app.js zajistiVyberNahledu) ---- */
+.nahled-vyber {
+  max-width: 240px;
+  padding: 4px 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--linka);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+/* Modrý pruh nahoře v hlavičce — schválně jiná barva než oranžové demo. */
+.nahled-pruh {
+  order: -1;
+  flex: 0 0 calc(100% + 32px);
+  margin: -10px -16px 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  background: #2f6fed;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.nahled-pruh-text {
+  margin-right: auto;
+}
+
+.nahled-pruh .btn {
+  background: #fff;
+  color: #17306b;
+  border-color: #fff;
+}
